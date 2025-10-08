@@ -3,6 +3,7 @@ export const revalidate = 86400; // revalidate once per day
 
 import LocalRating from "../../../components/LocalRating";
 import WatchlistButton from "../../../components/WatchlistButton";
+import TopFiveButton from "../../../components/TopFiveButton";
 
 async function getMovie(id: string) {
   const key = process.env.TMDB_API_KEY;
@@ -53,7 +54,7 @@ export default async function MoviePage({
           </h1>
           <p className="text-gray-300 mt-3">{overview}</p>
 
-          <div className="mt-6 space-y-4">
+          <div className="mt-6 space-y-5">
             <div>
               <span className="text-gray-400 text-sm">Cast: </span>
               <span className="text-gray-200">{cast || "—"}</span>
@@ -72,6 +73,17 @@ export default async function MoviePage({
               <div className="text-sm text-gray-400">Your Rating</div>
               <div className="mt-2 bg-gray-800 rounded p-3">
                 <LocalRating movieId={Number(params.id)} title={title} />
+              </div>
+            </div>
+
+            {/* Top 5 */}
+            <div>
+              <div className="text-sm text-gray-400">Top 5</div>
+              <div className="mt-2">
+                <TopFiveButton movieId={Number(params.id)} title={title} />
+              </div>
+              <div className="text-xs text-gray-500 mt-1">
+                (Max 5. You must set a rating before adding to Top 5.)
               </div>
             </div>
 
