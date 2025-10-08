@@ -18,6 +18,12 @@ export default function LocalRating({ movieId, title }: { movieId: number; title
     setRating(v);
     try {
       localStorage.setItem(storageKey, String(v));
+      // 🔔 Notify the app that this movie was rated (so Watchlist can auto-remove)
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(
+          new CustomEvent("cinecircle:rated", { detail: { movieId, rating: v } })
+        );
+      }
       setSaved(`Saved ${v.toFixed(1)} ★`);
       setTimeout(() => setSaved(null), 1200);
     } catch {}
