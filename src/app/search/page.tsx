@@ -7,8 +7,20 @@ type Movie = {
   id: number;
   title: string;
   release_date?: string;
-  poster_path?: string;
+  poster_path?: string | null;
 };
+
+function thumbUrl(poster_path?: string | null) {
+  return poster_path
+    ? `https://image.tmdb.org/t/p/w92${poster_path}` // small thumbnail for dropdown
+    : "https://via.placeholder.com/92x138?text=No+Poster";
+}
+
+function gridUrl(poster_path?: string | null) {
+  return poster_path
+    ? `https://image.tmdb.org/t/p/w342${poster_path}` // grid thumbs
+    : "https://via.placeholder.com/342x513?text=No+Poster";
+}
 
 export default function SearchPage() {
   const router = useRouter();
@@ -124,7 +136,7 @@ export default function SearchPage() {
             Search
           </button>
 
-          {/* Suggestions dropdown */}
+          {/* Suggestions dropdown with poster thumbnails */}
           {suggestions.length > 0 && (
             <ul
               id="suggestions-listbox"
@@ -145,12 +157,22 @@ export default function SearchPage() {
                     }`}
                     onMouseEnter={() => setHighlightIndex(idx)}
                     onMouseDown={(e) => {
-                      e.preventDefault(); // keep focus
+                      e.preventDefault(); // keep focus so router.push works
                       router.push(`/movie/${m.id}`);
                     }}
                   >
-                    {m.title}
-                    {year}
+                    <div className="flex items-center gap-3">
+                      <img
+                        src={thumbUrl(m.poster_path)}
+                        alt={`Poster for ${m.title}${year}`}
+                        className="w-10 h-auto rounded"
+                        loading="lazy"
+                      />
+                      <div className="truncate">
+                        <span className="font-medium">{m.title}</span>
+                        <span className="text-gray-400">{year}</span>
+                      </div>
+                    </div>
                   </li>
                 );
               })}
@@ -169,9 +191,6 @@ export default function SearchPage() {
       <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
         {results.map((m) => {
           const year = m.release_date ? ` (${m.release_date.slice(0, 4)})` : "";
-          const poster = m.poster_path
-            ? `https://image.tmdb.org/t/p/w342${m.poster_path}`
-            : "https://via.placeholder.com/342x513?text=No+Poster";
           return (
             <Link
               key={m.id}
@@ -179,9 +198,10 @@ export default function SearchPage() {
               className="card p-0 overflow-hidden hover:ring-2 hover:ring-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
             >
               <img
-                src={poster}
+                src={gridUrl(m.poster_path)}
                 alt={`Poster for ${m.title}${year}`}
                 className="w-full h-auto"
+                loading="lazy"
               />
               <div className="p-3">
                 <div className="font-semibold">
