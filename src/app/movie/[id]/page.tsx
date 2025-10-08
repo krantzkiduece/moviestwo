@@ -2,6 +2,7 @@
 export const revalidate = 86400; // revalidate once per day
 
 import LocalRating from "../../../components/LocalRating";
+import WatchlistButton from "../../../components/WatchlistButton";
 
 async function getMovie(id: string) {
   const key = process.env.TMDB_API_KEY;
@@ -52,14 +53,22 @@ export default async function MoviePage({
           </h1>
           <p className="text-gray-300 mt-3">{overview}</p>
 
-          <div className="mt-6 space-y-2">
+          <div className="mt-6 space-y-4">
             <div>
               <span className="text-gray-400 text-sm">Cast: </span>
               <span className="text-gray-200">{cast || "—"}</span>
             </div>
 
+            {/* Watchlist button */}
+            <div>
+              <div className="text-sm text-gray-400">Watchlist</div>
+              <div className="mt-2">
+                <WatchlistButton movieId={Number(params.id)} title={title} />
+              </div>
+            </div>
+
             {/* Your Rating (saved in browser for now) */}
-            <div className="mt-4">
+            <div>
               <div className="text-sm text-gray-400">Your Rating</div>
               <div className="mt-2 bg-gray-800 rounded p-3">
                 <LocalRating movieId={Number(params.id)} title={title} />
@@ -67,7 +76,7 @@ export default async function MoviePage({
             </div>
 
             {/* Comments placeholder for later */}
-            <div className="mt-4">
+            <div>
               <div className="text-sm text-gray-400">Comments (coming soon)</div>
               <div className="mt-2 bg-gray-800 rounded p-3 text-gray-500">
                 Nested thread will appear here.
