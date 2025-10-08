@@ -1,79 +1,85 @@
-"use client";
-import { useState } from "react";
-import Link from "next/link";
+// src/app/movie/[id]/page.tsx
+export const revalidate = 86400; // revalidate once per day
 
-type Movie = {
-  id: number;
-  title: string;
-  release_date?: string;
-  poster_path?: string;
-};
+import LocalRating from "../../../components/LocalRating";
 
-export default function SearchPage() {
-  const [query, setQuery] = useState("");
-  const [results, setResults] = useState<Movie[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+async function getMovie(id: string) {
+  const key = process.env.TMDB_API_KEY;
+  if (!key) throw new Error("Missing TMDB_API_KEY");
+  const url = `https://api.themoviedb.org/3/movie/${id}?api_key=${key}&append_to_response=credits`;
+  const res = await fetch(url, { next: { revalidate } });
+  if (!res.ok) throw new Error("Movie fetch failed");
+  return res.json();
+}
 
-  const onSearch = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!query.trim()) return;
-    setLoading(true);
-    setError(null);
-    try {
-      const res = await fetch(`/api/tmdb/search?q=${encodeURIComponent(query)}`);
-      if (!res.ok) throw new Error("Search failed");
-      const data = await res.json();
-      setResults(data.results || []);
-    } catch (err: any) {
-      setError(err?.message || "Unknown error");
-    } finally {
-      setLoading(false);
-    }
-  };
+export default async function MoviePage({
+  params,
+}: {
+  params: { id: string };
+}) {
+  const data = await getMovie(params.id);
+  const title = data.title || "Untitled";
+  const year = data.release_date ? ` (${data.release_date.slice(0, 4)})` : "";
+  const overview = data.overview || "No description available.";
+  const poster = data.poster_path
+    ? `https://image.tmdb.org/t/p/w500${data.poster_path}`
+    : null;
+  const cast =
+    Array.isArray(data?.credits?.cast)
+      ? data.credits.cast.slice(0, 10).map((c: any) => c.name).join(", ")
+      : "";
 
   return (
     <div className="space-y-6">
-      <form onSubmit={onSearch} className="card flex gap-3 items-center">
-        <input
-          className="flex-1 bg-gray-900 border border-gray-700 rounded px-3 py-2"
-          placeholder="Search by title, genre, cast, or year"
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-        />
-        <button className="bg-blue-600 hover:bg-blue-500 px-4 py-2 rounded">
-          Search
-        </button>
-      </form>
-
-      {loading && <p className="text-gray-300">Searching…</p>}
-      {error && <p className="text-red-400">Error: {error}</p>}
-
-      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
-        {results.map((m) => {
-          const year = m.release_date ? ` (${m.release_date.slice(0, 4)})` : "";
-          const poster = m.poster_path
-            ? `https://image.tmdb.org/t/p/w342${m.poster_path}`
-            : "https://via.placeholder.com/342x513?text=No+Poster";
-
-          return (
-            <Link
-              key={m.id}
-              href={`/movie/${m.id}`}
-              className="card p-0 overflow-hidden hover:ring-2 hover:ring-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
-            >
+      <div className="grid md:grid-cols-3 gap-6">
+        <div className="md:col-span-1">
+          <div className="bg-gray-800 rounded-xl overflow-hidden">
+            {poster ? (
               <img
                 src={poster}
-                alt={`Poster for ${m.title}${year}`}
+                alt={`Poster for ${title}${year}`}
                 className="w-full h-auto"
               />
-              <div className="p-3">
-                <div className="font-semibold">{m.title}{year}</div>
+            ) : (
+              <div className="p-6 text-gray-400 text-sm">No poster available</div>
+            )}
+          </div>
+        </div>
+
+        <div className="md:col-span-2">
+          <h1 className="text-3xl font-bold">
+            {title}{year}
+          </h1>
+          <p className="text-gray-300 mt-3">{overview}</p>
+
+          <div className="mt-6 space-y-2">
+            <div>
+              <span className="text-gray-400 text-sm">Cast: </span>
+              <span className="text-gray-200">{cast || "—"}</span>
+            </div>
+
+            {/* Your Rating (saved in browser for now) */}
+            <div className="mt-4">
+              <div className="text-sm text-gray-400">Your Rating</div>
+              <div className="mt-2 bg-gray-800 rounded p-3">
+                <LocalRating movieId={Number(params.id)} title={title} />
               </div>
-            </Link>
-          );
-        })}
+            </div>
+
+            {/* Comments placeholder for later */}
+            <div className="mt-4">
+              <div className="text-sm text-gray-400">Comments (coming soon)</div>
+              <div className="mt-2 bg-gray-800 rounded p-3 text-gray-500">
+                Nested thread will appear here.
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
+
+      <a href="/search" className="text-blue-400 hover:text-blue-300 text-sm">
+        ← Back to Search
+      </a>
     </div>
   );
 }
