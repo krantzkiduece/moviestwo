@@ -1,0 +1,9 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root { color-scheme: dark; }
+body { @apply bg-gray-900 text-gray-100; }
+a { @apply text-blue-400 hover:text-blue-300; }
+.container { @apply max-w-5xl mx-auto px-4; }
+.card { @apply bg-gray-800 rounded-xl p-4 shadow; }
