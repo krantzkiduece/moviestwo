@@ -1,76 +1,60 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 
 export default function AdminPage() {
-  const [who, setWho] = useState<string | null>(null);
-  const [typed, setTyped] = useState("");
+  const [name, setName] = useState("");
+  const [message, setMessage] = useState("");
 
-  async function refreshWho() {
-    const res = await fetch("/api/admin/who");
-    const j = await res.json();
-    setWho(j.cookie ?? null);
-  }
-
-  useEffect(() => {
-    refreshWho();
-  }, []);
-
-  async function login() {
-    await fetch("/api/admin/session?mode=login", {
+  async function handleAdd(e: React.FormEvent) {
+    e.preventDefault();
+    const res = await fetch("/api/admin/add-user", {
       method: "POST",
+      body: JSON.stringify({ name }),
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ user: typed }),
     });
-    setTyped("");
-    refreshWho();
+    const data = await res.json();
+    setMessage(data.ok ? "✅ Added!" : "❌ Error adding user");
   }
 
-  async function logout() {
-    await fetch("/api/admin/session?mode=logout", { method: "POST" });
-    refreshWho();
+  async function handleRemove(e: React.FormEvent) {
+    e.preventDefault();
+    const res = await fetch("/api/admin/remove-user", {
+      method: "POST",
+      body: JSON.stringify({ name }),
+      headers: { "Content-Type": "application/json" },
+    });
+    const data = await res.json();
+    setMessage(data.ok ? "🗑️ Removed!" : "❌ Error removing user");
   }
 
   return (
-    <main className="px-6 py-8 max-w-xl">
-      <h1 className="text-2xl font-semibold mb-2">Admin</h1>
-      <p className="text-sm text-gray-600 mb-6">
-        You’re considered “logged in” when the{" "}
-        <code className="px-1 bg-gray-100 rounded">cc_user</code> cookie equals
-        your admin name (we’re using{" "}
-        <code className="px-1 bg-gray-100 rounded">admin</code>).
-      </p>
+    <div style={{ padding: 40, textAlign: "center" }}>
+      <h2>Admin Console</h2>
+      <p>Add or remove allowed first names:</p>
 
-      <div className="mb-4">
-        <div className="text-sm mb-2">
-          Current session user:{" "}
-          <span className="font-medium">{who ? who : "— (not set)"}</span>
-        </div>
-        <div className="flex gap-2">
-          <input
-            value={typed}
-            onChange={(e) => setTyped(e.target.value)}
-            placeholder="Type: admin"
-            className="border rounded px-3 py-2 w-64"
-          />
-          <button
-            onClick={login}
-            className="px-4 py-2 rounded bg-black text-white hover:opacity-90"
-          >
-            Log in
-          </button>
-          <button
-            onClick={logout}
-            className="px-4 py-2 rounded border hover:bg-gray-50"
-          >
-            Log out
-          </button>
-        </div>
-      </div>
+      <form onSubmit={handleAdd} style={{ marginBottom: 10 }}>
+        <input
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          placeholder="First name"
+          style={{ padding: "6px", fontSize: "1em" }}
+        />
+        <button
+          type="submit"
+          style={{ marginLeft: 8, padding: "6px 16px", fontSize: "1em" }}
+        >
+          Add
+        </button>
+        <button
+          onClick={handleRemove}
+          style={{ marginLeft: 8, padding: "6px 16px", fontSize: "1em" }}
+        >
+          Remove
+        </button>
+      </form>
 
-      <a href="/admin/tools" className="inline-block mt-4 underline">
-        Go to Admin Tools →
-      </a>
-    </main>
+      <p>{message}</p>
+    </div>
   );
 }
