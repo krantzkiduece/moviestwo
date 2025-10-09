@@ -1,50 +1,42 @@
 // src/app/layout.tsx
 import "./globals.css";
 import type { Metadata } from "next";
-import Link from "next/link";
+import SessionBar from "../components/SessionBar";
 
 export const metadata: Metadata = {
   title: "CineCircle",
-  description: "A simple Rotten Tomatoes–style movie database for friends",
+  description: "Friends’ movie picks, ratings, and ideas.",
 };
 
-export default function RootLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
+export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en">
-      <body className="bg-black text-gray-100 min-h-screen">
-        {/* Header / Top Nav */}
-        <header className="border-b border-gray-800">
-          <div className="max-w-6xl mx-auto px-4 py-3 flex items-center justify-between gap-4">
-            <Link href="/" className="text-xl font-bold hover:opacity-90">
-              CineCircle
-            </Link>
-
-            <nav className="flex items-center gap-4 text-sm">
-              <Link className="hover:text-blue-400" href="/search">
-                Search
-              </Link>
-              <Link className="hover:text-blue-400" href="/trending">
-                Trending
-              </Link>
-              <Link className="hover:text-blue-400" href="/friends">
-                Friends
-              </Link>
-              <Link className="hover:text-blue-400" href="/profile/me">
-                My Profile
-              </Link>
-              <Link className="hover:text-blue-400" href="/admin">
-                Admin
-              </Link>
+      <body className="bg-black text-white min-h-screen">
+        <div className="max-w-6xl mx-auto p-4">
+          {/* Site header */}
+          <header className="mb-4 flex items-center justify-between">
+            <a href="/" className="text-xl font-bold tracking-wide hover:opacity-90">
+              🎬 CineCircle
+            </a>
+            <nav className="text-sm space-x-4">
+              <a href="/" className="hover:underline">Home</a>
+              <a href="/trending" className="hover:underline">Trending</a>
+              <a href="/friends" className="hover:underline">Friends</a>
+              <a href="/profile/me" className="hover:underline">My Profile</a>
+              <a href="/admin" className="hover:underline">Admin</a>
             </nav>
-          </div>
-        </header>
+          </header>
 
-        {/* Main content container */}
-        <main className="max-w-6xl mx-auto px-4 py-6">{children}</main>
+          {/* Session bar (shows current name + Logout) */}
+          <SessionBar />
+
+          {/* Page content */}
+          <main className="space-y-6">{children}</main>
+
+          <footer className="mt-12 text-xs text-gray-500">
+            Built with TMDb data (poster & metadata). This product uses the TMDB API but is not endorsed or certified by TMDb.
+          </footer>
+        </div>
       </body>
     </html>
   );
