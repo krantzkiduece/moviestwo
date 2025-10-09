@@ -1,17 +1,50 @@
-import "../styles/globals.css";
-import NavBar from "../components/NavBar";
+// src/app/layout.tsx
+import "./globals.css";
+import type { Metadata } from "next";
+import Link from "next/link";
 
-export const metadata = { title: "CineCircle" };
+export const metadata: Metadata = {
+  title: "CineCircle",
+  description: "A simple Rotten Tomatoes–style movie database for friends",
+};
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default function RootLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
   return (
     <html lang="en">
-      <body>
-        <NavBar />
-        <main className="container py-6">{children}</main>
-        <footer className="container py-10 text-xs text-gray-400">
-          Movie data and images provided by <a href="https://www.themoviedb.org" target="_blank" rel="noreferrer">The Movie Database (TMDb)</a>.
-        </footer>
+      <body className="bg-black text-gray-100 min-h-screen">
+        {/* Header / Top Nav */}
+        <header className="border-b border-gray-800">
+          <div className="max-w-6xl mx-auto px-4 py-3 flex items-center justify-between gap-4">
+            <Link href="/" className="text-xl font-bold hover:opacity-90">
+              CineCircle
+            </Link>
+
+            <nav className="flex items-center gap-4 text-sm">
+              <Link className="hover:text-blue-400" href="/search">
+                Search
+              </Link>
+              <Link className="hover:text-blue-400" href="/trending">
+                Trending
+              </Link>
+              <Link className="hover:text-blue-400" href="/friends">
+                Friends
+              </Link>
+              <Link className="hover:text-blue-400" href="/profile/me">
+                My Profile
+              </Link>
+              <Link className="hover:text-blue-400" href="/admin">
+                Admin
+              </Link>
+            </nav>
+          </div>
+        </header>
+
+        {/* Main content container */}
+        <main className="max-w-6xl mx-auto px-4 py-6">{children}</main>
       </body>
     </html>
   );
