@@ -1,5 +1,6 @@
+// src/components/Comments.tsx
 "use client";
-import { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 
 /** Server shape (from our API)
  * { id: string, movieId: number, parentId: string|null, author: string, text: string, at: number }
@@ -16,16 +17,17 @@ type RawComment = {
 type CommentNode = RawComment & { children: CommentNode[] };
 
 function buildTree(items: RawComment[]): CommentNode[] {
-  // newest-first from API; we’ll keep that ordering for roots
+  // newest-first from API; keep that ordering for roots
   const byId = new Map<string, CommentNode>();
   const roots: CommentNode[] = [];
   for (const c of items) byId.set(c.id, { ...c, children: [] });
-
   for (const c of items) {
+    const node = byId.get(c.id)!;
     if (c.parentId && byId.has(c.parentId)) {
-      byId.get(c.parentId)!.children.unshift(byId.get(c.id)!); // newest first among replies
+      // newest first among replies
+      byId.get(c.parentId)!.children.unshift(node);
     } else {
-      roots.push(byId.get(c.id)!);
+      roots.push(node);
     }
   }
   return roots;
@@ -39,19 +41,41 @@ function timeLabel(ms: number) {
   }
 }
 
+/** Identity comes from your Friend profile (stored client-side).
+ * We read localStorage key "cinecircle_identity" -> { username, displayName }.
+ * If not set, we fall back to "Anonymous".
+ */
+function getIdentity(): { username?: string; displayName?: string } {
+  try {
+    const raw = localStorage.getItem("cinecircle_identity");
+    if (!raw) return {};
+    const obj = JSON.parse(raw);
+    if (obj && typeof obj === "object") return obj as any;
+  } catch {}
+  return {};
+}
+
 export default function Comments({ movieId, movieTitle }: { movieId: number; movieTitle?: string }) {
   const [loading, setLoading] = useState(true);
   const [raw, setRaw] = useState<RawComment[]>([]);
   const [error, setError] = useState<string | null>(null);
 
-  // new root comment fields
-  const [author, setAuthor] = useState("");
+  // New root comment (no name field — we use identity)
   const [text, setText] = useState("");
 
-  // reply state: which comment id is “open” for reply
+  // Reply state — which comment is open, and its text
   const [replyTo, setReplyTo] = useState<string | null>(null);
-  const [replyAuthor, setReplyAuthor] = useState("");
   const [replyText, setReplyText] = useState("");
+
+  // Focus fix: keep a stable ref to the reply textarea and refocus on open/re-render
+  const replyRef = useRef<HTMLTextAreaElement | null>(null);
+  useEffect(() => {
+    if (replyTo) {
+      // Defer to next tick to allow DOM update
+      const t = setTimeout(() => replyRef.current?.focus(), 0);
+      return () => clearTimeout(t);
+    }
+  }, [replyTo, replyText]);
 
   const tree = useMemo(() => buildTree(raw), [raw]);
 
@@ -76,8 +100,13 @@ export default function Comments({ movieId, movieTitle }: { movieId: number; mov
     load();
   }, [movieId]);
 
+  const currentDisplayName = (() => {
+    const id = getIdentity();
+    return id.displayName || id.username || "Anonymous";
+  })();
+
   const post = async () => {
-    const body = { author: author.trim() || "Anonymous", text: text.trim() };
+    const body = { author: currentDisplayName, text: text.trim() };
     if (!body.text) return;
     try {
       const r = await fetch(`/api/comments/${movieId}`, {
@@ -90,7 +119,6 @@ export default function Comments({ movieId, movieTitle }: { movieId: number; mov
         throw new Error(d?.error || "Failed to post comment");
       }
       setText("");
-      setAuthor("");
       await load();
     } catch (e: any) {
       alert(e?.message || "Failed to post");
@@ -99,7 +127,7 @@ export default function Comments({ movieId, movieTitle }: { movieId: number; mov
 
   const postReply = async () => {
     const parentId = replyTo;
-    const body = { author: replyAuthor.trim() || "Anonymous", text: replyText.trim(), parentId };
+    const body = { author: currentDisplayName, text: replyText.trim(), parentId };
     if (!body.text || !parentId) return;
     try {
       const r = await fetch(`/api/comments/${movieId}`, {
@@ -112,7 +140,6 @@ export default function Comments({ movieId, movieTitle }: { movieId: number; mov
         throw new Error(d?.error || "Failed to post reply");
       }
       setReplyText("");
-      setReplyAuthor("");
       setReplyTo(null);
       await load();
     } catch (e: any) {
@@ -120,12 +147,21 @@ export default function Comments({ movieId, movieTitle }: { movieId: number; mov
     }
   };
 
-  const CommentItem = ({ node, depth = 0 }: { node: CommentNode; depth?: number }) => {
+  const CommentItem = React.memo(function CommentItem({
+    node,
+    depth = 0,
+  }: {
+    node: CommentNode;
+    depth?: number;
+  }) {
     return (
       <div className="mt-3">
         <div className="flex items-start gap-3">
-          {/* thread line */}
-          {depth > 0 && <div className="w-4 flex justify-center"><div className="w-px bg-gray-700 h-full"></div></div>}
+          {depth > 0 && (
+            <div className="w-4 flex justify-center">
+              <div className="w-px bg-gray-700 h-full" />
+            </div>
+          )}
           <div className="flex-1">
             <div className="text-sm">
               <span className="font-semibold">{node.author || "Anonymous"}</span>{" "}
@@ -135,22 +171,30 @@ export default function Comments({ movieId, movieTitle }: { movieId: number; mov
             <div className="mt-1">
               <button
                 className="text-xs text-blue-400 hover:text-blue-300"
-                onClick={() => setReplyTo(node.id)}
+                onClick={() => {
+                  setReplyTo(node.id);
+                  setReplyText("");
+                }}
+                type="button"
               >
                 Reply
               </button>
             </div>
 
-            {/* reply box */}
+            {/* reply box (no name field) */}
             {replyTo === node.id && (
-              <div className="mt-2 p-3 bg-gray-900 border border-gray-800 rounded">
-                <input
-                  className="w-full bg-gray-950 border border-gray-800 rounded px-3 py-2 mb-2"
-                  placeholder="Your name (optional)"
-                  value={replyAuthor}
-                  onChange={(e) => setReplyAuthor(e.target.value)}
-                />
+              <div
+                className="mt-2 p-3 bg-gray-900 border border-gray-800 rounded"
+                onMouseDown={(e) => {
+                  // help keep focus inside the editor on drag/select
+                  e.stopPropagation();
+                }}
+              >
+                <div className="text-xs text-gray-400 mb-1">
+                  Replying as <span className="font-medium">{currentDisplayName}</span>
+                </div>
                 <textarea
+                  ref={replyRef}
                   className="w-full bg-gray-950 border border-gray-800 rounded px-3 py-2"
                   placeholder="Write a reply…"
                   value={replyText}
@@ -158,10 +202,19 @@ export default function Comments({ movieId, movieTitle }: { movieId: number; mov
                   rows={3}
                 />
                 <div className="mt-2 flex items-center gap-2">
-                  <button className="bg-blue-600 hover:bg-blue-500 px-3 py-1.5 rounded text-sm" onClick={postReply}>
+                  <button
+                    className="bg-blue-600 hover:bg-blue-500 px-3 py-1.5 rounded text-sm"
+                    onClick={postReply}
+                    type="button"
+                    disabled={!replyText.trim()}
+                  >
                     Post reply
                   </button>
-                  <button className="text-sm text-gray-400 hover:text-gray-300" onClick={() => setReplyTo(null)}>
+                  <button
+                    className="text-sm text-gray-400 hover:text-gray-300"
+                    onClick={() => setReplyTo(null)}
+                    type="button"
+                  >
                     Cancel
                   </button>
                 </div>
@@ -180,20 +233,31 @@ export default function Comments({ movieId, movieTitle }: { movieId: number; mov
         </div>
       </div>
     );
-  };
+  });
 
   return (
     <section className="card">
-      <h2 className="text-xl font-semibold">Comments{movieTitle ? ` — ${movieTitle}` : ""}</h2>
+      <h2 className="text-xl font-semibold">
+        Comments{movieTitle ? " — " + movieTitle : ""}
+      </h2>
 
-      {/* new root comment */}
+      {/* identity hint */}
+      <div className="text-xs text-gray-400 mt-1">
+        Commenting as <span className="font-medium">{currentDisplayName}</span>
+        {currentDisplayName === "Anonymous" && (
+          <>
+            {" "}
+            — set your Friend identity on{" "}
+            <a className="text-blue-400 hover:text-blue-300" href="/profile/me">
+              /profile/me
+            </a>
+            .
+          </>
+        )}
+      </div>
+
+      {/* new root comment (no name field) */}
       <div className="mt-4">
-        <input
-          className="w-full bg-gray-900 border border-gray-700 rounded px-3 py-2 mb-2"
-          placeholder="Your name (optional)"
-          value={author}
-          onChange={(e) => setAuthor(e.target.value)}
-        />
         <textarea
           className="w-full bg-gray-900 border border-gray-700 rounded px-3 py-2"
           placeholder="Write a comment…"
@@ -206,6 +270,7 @@ export default function Comments({ movieId, movieTitle }: { movieId: number; mov
             className="bg-blue-600 hover:bg-blue-500 px-4 py-2 rounded disabled:opacity-60"
             onClick={post}
             disabled={!text.trim()}
+            type="button"
           >
             Post comment
           </button>
@@ -219,7 +284,9 @@ export default function Comments({ movieId, movieTitle }: { movieId: number; mov
         ) : error ? (
           <div className="text-red-400 text-sm">{error}</div>
         ) : raw.length === 0 ? (
-          <div className="text-gray-400 text-sm">No comments yet. Be the first to comment.</div>
+          <div className="text-gray-400 text-sm">
+            No comments yet. Be the first to comment.
+          </div>
         ) : (
           <div className="space-y-2">
             {tree.map((n) => (
