@@ -24,16 +24,16 @@ export async function GET(req: NextRequest) {
     const data = await r.json();
     const raw = Array.isArray(data?.results) ? data.results : [];
 
-    // Normalize to match your movie result shape and keep posters only
+    // Normalize fields to match your movie card expectations
     const results = raw
-      .filter((t: any) => t && t.id && t.name && t.poster_path)
+      .filter((t: any) => t && t.id && t.name && t.poster_path) // posters only
       .map((t: any) => ({
         id: t.id,
-        title: t.name,                // keep a consistent "title" field for UI reuse
+        title: t.name,
         release_date: t.first_air_date || null,
         poster_path: t.poster_path || null,
       }))
-      .slice(0, 12);
+      .slice(0, 20);
 
     return NextResponse.json({ results });
   } catch (e: any) {
