@@ -1,7 +1,7 @@
 // src/app/trending/page.tsx
 // Friends’ Trending (deduped per user+movie) + TMDb Trending (posters only)
 
-export const revalidate = 600; // revalidate TMDb section every 10 minutes
+export const revalidate = 600; // revalidate TMDb section every 10 minutess
 
 import { redis } from "../../lib/redis";
 
