@@ -57,8 +57,10 @@ export async function llen(key: string): Promise<number> {
   return client.llen(key);
 }
 export async function del(key: string): Promise<number> {
-  // Returns the number of keys that were removed
   return client.del(key);
+}
+export async function incr(key: string): Promise<number> {
+  return client.incr(key);
 }
 
 // Back-compat default export-style object
@@ -73,4 +75,5 @@ export const redis = {
   lrange,
   llen,
   del,
+  incr,
 };
