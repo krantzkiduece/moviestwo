@@ -1,6 +1,7 @@
 // src/app/trending/page.tsx
-// Friends’ Trending (deduped per user+movie) + TMDb Trending
-export const revalidate = 600; // cache TMDb for 10m; friends section loads live from Redis
+// Friends’ Trending (deduped per user+movie) + TMDb Trending (posters only)
+
+export const revalidate = 600; // revalidate TMDb section every 10 minutes
 
 import { redis } from "../../lib/redis";
 
@@ -32,11 +33,12 @@ function posterUrl(p?: string | null, size: "w185" | "w342" = "w185") {
   return p ? `https://image.tmdb.org/t/p/${size}${p}` : "";
 }
 
-async function getFriendsTrending(limit = 50) {
+async function getFriendsTrending(limit = 60) {
   // Read newest events from Redis and dedupe per (username+movieId), skipping items without posters
   const rawList = await redis.lrange<string>(LIST_KEY, 0, 999);
   const seen = new Set<string>();
   const items: ActivityEvent[] = [];
+
   for (const raw of rawList) {
     let ev: ActivityEvent | null = null;
     try {
@@ -44,18 +46,22 @@ async function getFriendsTrending(limit = 50) {
     } catch {
       continue;
     }
-    if (!ev || !ALLOWED.has(ev.type as any)) continue;
+    if (!ev || !ALLOWED.has(ev.type)) continue;
     if (!ev.movieId || !ev.at) continue;
+
     const uname = (ev.username || "").toLowerCase();
     if (!uname) continue;
-    if (!ev.poster_path) continue; // hide items without posters (keeps the grid clean)
+    if (!ev.poster_path) continue; // hide items without posters
+
     const key = `${uname}:${ev.movieId}`;
-    if (seen.has(key)) continue; // already kept a newer one
+    if (seen.has(key)) continue; // keep only the newest per (user+movie)
     seen.add(key);
+
     items.push(ev);
     if (items.length >= limit) break;
   }
-  // items are newest-first by construction
+
+  // Items are already newest-first (list is newest-first)
   return items;
 }
 
@@ -70,7 +76,7 @@ async function getTmdbTrending(): Promise<TmdbMovie[]> {
     if (!r.ok) return [];
     const data = await r.json();
     const results: TmdbMovie[] = Array.isArray(data?.results) ? data.results : [];
-    // Filter out items without posters and take top 20
+    // Posters only, take top 20
     return results.filter((m) => !!m.poster_path).slice(0, 20);
   } catch {
     return [];
