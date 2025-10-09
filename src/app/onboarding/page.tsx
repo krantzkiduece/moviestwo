@@ -1,5 +1,6 @@
 "use client";
 import { useMemo, useState } from "react";
+import ActorSelect from "../../components/ActorSelect";
 
 type MiniMovie = {
   id: number;
@@ -30,7 +31,11 @@ export default function OnboardingPage() {
   const [selected, setSelected] = useState<number[]>([]);
   const [fromYear, setFromYear] = useState(1990);
   const [toYear, setToYear] = useState(thisYear);
-  const [actorName, setActorName] = useState("");
+
+  // Actor selection via dropdown
+  const [actorName, setActorName] = useState<string>("");
+  const [actorPicked, setActorPicked] = useState<{ id: number; name: string } | null>(null);
+
   const [loading, setLoading] = useState(false);
   const [results, setResults] = useState<MiniMovie[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -39,6 +44,11 @@ export default function OnboardingPage() {
     setSelected((prev) =>
       prev.includes(id) ? prev.filter((g) => g !== id) : [...prev, id]
     );
+  };
+
+  const clearActor = () => {
+    setActorPicked(null);
+    setActorName("");
   };
 
   const fetchSuggestions = async () => {
@@ -50,7 +60,9 @@ export default function OnboardingPage() {
       if (selected.length) params.set("genres", selected.join(","));
       if (fromYear) params.set("fromYear", String(fromYear));
       if (toYear) params.set("toYear", String(toYear));
-      if (actorName.trim()) params.set("actorName", actorName.trim());
+      // Our suggest API accepts actorName; we pass the picked name from the dropdown
+      if (actorPicked?.name) params.set("actorName", actorPicked.name);
+
       const r = await fetch(`/api/tmdb/suggest?${params.toString()}`, { cache: "no-store" });
       const data = await r.json();
       if (!r.ok) throw new Error(data?.error || "Suggest failed");
@@ -118,16 +130,25 @@ export default function OnboardingPage() {
           </div>
         </div>
 
-        {/* Actor */}
+        {/* Actor dropdown */}
         <div>
           <label className="block text-sm text-gray-400 mb-1">Favorite actor (optional)</label>
-          <input
-            type="text"
-            placeholder="e.g., Tom Cruise"
-            value={actorName}
-            onChange={(e) => setActorName(e.target.value)}
-            className="w-full bg-gray-900 border border-gray-700 rounded px-3 py-2"
+          <ActorSelect
+            initialName={actorName}
+            onSelect={(p) => {
+              setActorPicked(p);
+              setActorName(p.name);
+            }}
+            placeholder="Search an actor (e.g., Tom Cruise)"
           />
+          {actorPicked && (
+            <div className="flex items-center gap-3 mt-2 text-sm">
+              <span className="text-gray-300">Selected: <span className="font-medium">{actorPicked.name}</span></span>
+              <button onClick={clearActor} className="text-blue-400 hover:text-blue-300">
+                Clear
+              </button>
+            </div>
+          )}
         </div>
 
         {/* Buttons */}
