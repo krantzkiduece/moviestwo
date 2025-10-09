@@ -47,6 +47,13 @@ async function sendActivity(type: "top5_added" | "top5_removed", movieId: number
   }
 }
 
+// 🔔 helper: tell other components the Top 5 changed (TopFiveGallery listens for this)
+function notifyTop5Changed() {
+  if (typeof window !== "undefined") {
+    window.dispatchEvent(new Event("cinecircle:top5-changed"));
+  }
+}
+
 export default function TopFiveButton({
   movieId,
   title,
@@ -91,6 +98,7 @@ export default function TopFiveButton({
       saveTopFive(list);
       setInTop(true);
       setMsg(`Added${title ? ` “${title}”` : ""} to Top 5.`);
+      notifyTop5Changed();              // <<< refresh galleries immediately
       await sendActivity("top5_added", movieId);
     } else {
       // Removing
@@ -98,10 +106,10 @@ export default function TopFiveButton({
       saveTopFive(list);
       setInTop(false);
       setMsg(`Removed${title ? ` “${title}”` : ""} from Top 5.`);
+      notifyTop5Changed();              // <<< refresh galleries immediately
       await sendActivity("top5_removed", movieId);
     }
 
-    // Auto-clear the message
     setTimeout(() => setMsg(null), 1200);
   };
 
