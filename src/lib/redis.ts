@@ -53,6 +53,9 @@ export async function lrange<T = string>(
   const res = (await client.lrange(key, start, stop)) as any[];
   return (Array.isArray(res) ? res : []) as T[];
 }
+export async function llen(key: string): Promise<number> {
+  return client.llen(key);
+}
 
 // Back-compat default export-style object
 export const redis = {
@@ -64,4 +67,5 @@ export const redis = {
   lpush,
   ltrim,
   lrange,
+  llen,
 };
