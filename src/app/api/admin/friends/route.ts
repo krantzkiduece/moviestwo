@@ -6,7 +6,7 @@ import { redis } from "../../../../lib/redis";
 /**
  * Data model (very simple for now)
  * - Index: "friends:index"  (a Redis Set of usernames)
- * - Each friend doc: key "friend:<username>" -> JSON string:
+ * - Each friend doc: key "friend:<username>" -> JSON string or object:
  *   { username: string, displayName: string }
  */
 
@@ -34,16 +34,29 @@ function validUsername(u: string): boolean {
 // GET: public — list all friends (sorted by username)
 export async function GET() {
   try {
-    const usernames = await redis.smembers<string>(INDEX_KEY);
-    const sorted = (usernames || []).sort();
-    const items: Friend[] = [];
+    // Upstash client types can be strict; avoid generics and normalize to strings.
+    const rawMembers = await redis.smembers(INDEX_KEY);
+    const usernames = (Array.isArray(rawMembers) ? rawMembers : []) as Array<string | number>;
+    const sorted = usernames.map((u) => String(u)).sort();
 
+    const items: Friend[] = [];
     for (const u of sorted) {
       try {
-        const raw = await redis.get<string>(DOC_KEY(u));
+        const raw = await redis.get(DOC_KEY(u));
         if (!raw) continue;
-        const f = JSON.parse(raw) as Friend;
-        if (f && f.username) items.push(f);
+
+        let doc: any = raw;
+        if (typeof raw === "string") {
+          try {
+            doc = JSON.parse(raw);
+          } catch {
+            // if someone manually set a plain string, skip
+            continue;
+          }
+        }
+        if (doc && typeof doc.username === "string" && typeof doc.displayName === "string") {
+          items.push({ username: doc.username, displayName: doc.displayName });
+        }
       } catch {
         // ignore malformed docs
       }
