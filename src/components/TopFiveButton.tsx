@@ -13,12 +13,37 @@ function saveTopFive(list: number[]) {
     localStorage.setItem("top5", JSON.stringify(list));
   } catch {}
 }
+
+// Read rating saved by LocalRating (supports both plain "3.5" and JSON {"value":3.5})
 function getRating(movieId: number): number {
   try {
     const raw = localStorage.getItem(`rating:${movieId}`);
-    return raw ? parseFloat(raw) : 0;
+    if (!raw) return 0;
+    try {
+      const parsed = JSON.parse(raw);
+      if (parsed && typeof parsed === "object" && "value" in parsed) {
+        const v = Number((parsed as any).value);
+        return isNaN(v) ? 0 : v;
+      }
+    } catch {
+      // not JSON → fall through
+    }
+    const v = parseFloat(raw);
+    return isNaN(v) ? 0 : v;
   } catch {
     return 0;
+  }
+}
+
+async function sendActivity(type: "top5_added" | "top5_removed", movieId: number) {
+  try {
+    await fetch("/api/activity/post", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ type, movieId }),
+    });
+  } catch {
+    // ignore network errors; local UI still works
   }
 }
 
@@ -38,21 +63,19 @@ export default function TopFiveButton({
     setInTop(list.includes(movieId));
   }, [movieId]);
 
-  // If a rating is set after page load, we might enable adding to Top 5
+  // Clear any message if a rating gets set afterward
   useEffect(() => {
     const onRated = (e: Event) => {
       const detail = (e as CustomEvent).detail as { movieId: number; rating: number };
-      if (detail?.movieId === movieId && detail.rating > 0) {
-        // No direct UI change here, just clear messages
-        setMsg(null);
-      }
+      if (detail?.movieId === movieId && detail.rating > 0) setMsg(null);
     };
     window.addEventListener("cinecircle:rated", onRated as EventListener);
     return () => window.removeEventListener("cinecircle:rated", onRated as EventListener);
   }, [movieId]);
 
-  const toggle = () => {
+  const toggle = async () => {
     const currentRating = getRating(movieId);
+
     if (!inTop) {
       // Adding: require a rating first
       if (currentRating <= 0) {
@@ -68,13 +91,16 @@ export default function TopFiveButton({
       saveTopFive(list);
       setInTop(true);
       setMsg(`Added${title ? ` “${title}”` : ""} to Top 5.`);
+      await sendActivity("top5_added", movieId);
     } else {
       // Removing
       const list = getTopFive().filter((id) => id !== movieId);
       saveTopFive(list);
       setInTop(false);
       setMsg(`Removed${title ? ` “${title}”` : ""} from Top 5.`);
+      await sendActivity("top5_removed", movieId);
     }
+
     // Auto-clear the message
     setTimeout(() => setMsg(null), 1200);
   };
