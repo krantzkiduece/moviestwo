@@ -6,10 +6,10 @@ import { useEffect, useMemo, useRef, useState } from "react";
 type MiniMovie = { id: number; title: string; release_date?: string; poster_path?: string | null };
 type Person = { id: number; name: string; profile_path?: string | null; known_for_department?: string | null };
 
-function posterUrl(p?: string | null, size: "w92" | "w154" = "w92") {
-  return p ? `https://image.tmdb.org/t/p/${size}${p}` : "https://via.placeholder.com/92x138?text=No+Img";
+function posterUrl(p: string, size: "w92" | "w154" = "w92") {
+  return `https://image.tmdb.org/t/p/${size}${p}`;
 }
-function headshotUrl(p?: string | null, size: "w92" | "w154" = "w92") {
+function headshotUrl(p: string, size: "w92" | "w154" = "w92") {
   return posterUrl(p, size);
 }
 
@@ -67,8 +67,16 @@ export default function SearchBar() {
         if (abort) return;
         const m = await mRes.json().catch(() => ({ results: [] }));
         const p = await pRes.json().catch(() => ({ results: [] }));
-        setMovieResults(Array.isArray(m?.results) ? m.results.slice(0, 8) : []);
-        setPeopleResults(Array.isArray(p?.results) ? p.results.slice(0, 6) : []);
+
+        // ✂️ Filter out any items without images
+        const moviesRaw: MiniMovie[] = Array.isArray(m?.results) ? m.results : [];
+        const peopleRaw: Person[] = Array.isArray(p?.results) ? p.results : [];
+
+        const moviesWithPosters = moviesRaw.filter((x) => !!x.poster_path).slice(0, 8);
+        const peopleWithHeadshots = peopleRaw.filter((x) => !!x.profile_path).slice(0, 6);
+
+        setMovieResults(moviesWithPosters);
+        setPeopleResults(peopleWithHeadshots);
       } catch {
         if (!abort) {
           setMovieResults([]);
@@ -110,7 +118,6 @@ export default function SearchBar() {
       setIx(-1);
       return;
     }
-    // find first non-label
     const first = flat.findIndex((it) => it.kind !== "label");
     setIx(first);
   }, [open, flat]);
@@ -192,6 +199,7 @@ export default function SearchBar() {
                 if (item.kind === "person") {
                   const p = item.p;
                   const active = i === ix;
+                  // We filtered out people without profile_path
                   return (
                     <li
                       key={`p-${p.id}`}
@@ -201,7 +209,7 @@ export default function SearchBar() {
                       onClick={() => goActor(p.id)}
                     >
                       <img
-                        src={headshotUrl(p.profile_path, "w92")}
+                        src={headshotUrl(p.profile_path as string, "w92")}
                         alt={`Headshot of ${p.name}`}
                         className="w-10 h-10 object-cover rounded"
                         loading="lazy"
@@ -213,7 +221,7 @@ export default function SearchBar() {
                     </li>
                   );
                 }
-                // movie
+                // movie (we filtered out movies without poster_path)
                 const m = item.m;
                 const year = m.release_date ? " (" + m.release_date.slice(0, 4) + ")" : "";
                 const active = i === ix;
@@ -226,7 +234,7 @@ export default function SearchBar() {
                     onClick={() => goMovie(m.id)}
                   >
                     <img
-                      src={posterUrl(m.poster_path, "w92")}
+                      src={posterUrl(m.poster_path as string, "w92")}
                       alt={`Poster for ${m.title}${year}`}
                       className="w-10 h-auto rounded"
                       loading="lazy"
