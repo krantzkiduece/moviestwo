@@ -1,3 +1,4 @@
+// src/components/PublishProfile.tsx
 "use client";
 import { useEffect, useMemo, useState } from "react";
 
@@ -58,13 +59,31 @@ function readRatings(): Record<string, number> {
         value = parseFloat(raw);
       }
       if (!isNaN(value) && value > 0) {
-        // force half-stars (0.5 increments), clamp to 0.5..5.0
         const v = Math.min(5, Math.max(0.5, Math.round(value * 2) / 2));
         out[String(movieId)] = v;
       }
     }
   } catch {}
   return out;
+}
+
+function readIdentity(): { username?: string; displayName?: string } {
+  try {
+    const raw = localStorage.getItem("cinecircle_identity");
+    if (!raw) return {};
+    const obj = JSON.parse(raw);
+    if (obj && typeof obj === "object") return obj as any;
+  } catch {}
+  return {};
+}
+
+function saveIdentity(username: string, displayName: string) {
+  try {
+    localStorage.setItem(
+      "cinecircle_identity",
+      JSON.stringify({ username, displayName })
+    );
+  } catch {}
 }
 
 // ---- Component ----
@@ -74,6 +93,14 @@ export default function PublishProfile() {
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
+
+  const [identity, setIdentity] = useState<{ username?: string; displayName?: string }>(() => readIdentity());
+  const identityLabel =
+    identity.displayName
+      ? `${identity.displayName} (@${identity.username || ""})`
+      : identity.username
+      ? `@${identity.username}`
+      : "Anonymous";
 
   // Load friend list (public GET)
   useEffect(() => {
@@ -108,6 +135,20 @@ export default function PublishProfile() {
     }};
   }, []); // compute once when mounted
 
+  // Quick identity setter (without publishing)
+  const useAsIdentity = () => {
+    setMsg(null); setErr(null);
+    if (!username) {
+      setErr("Pick a Friend username first.");
+      return;
+    }
+    const f = friends.find((x) => x.username === username);
+    const displayName = f?.displayName || username;
+    saveIdentity(username, displayName);
+    setIdentity({ username, displayName });
+    setMsg(`Identity set to ${displayName} (@${username}). Your comments will use this name.`);
+  };
+
   const publish = async () => {
     setMsg(null);
     setErr(null);
@@ -131,7 +172,13 @@ export default function PublishProfile() {
       if (!r.ok) {
         setErr(data?.error || "Publish failed");
       } else {
-        setMsg(`Published! View at /u/${username}`);
+        // ✔ also set identity on successful publish
+        const f = friends.find((x) => x.username === username);
+        const displayName = f?.displayName || username;
+        saveIdentity(username, displayName);
+        setIdentity({ username, displayName });
+
+        setMsg(`Published! View at /u/${username}. Your commenting identity is now ${displayName} (@${username}).`);
       }
     } catch (e: any) {
       setErr(e?.message || "Network error");
@@ -146,6 +193,11 @@ export default function PublishProfile() {
       <p className="text-gray-400 text-sm mt-1">
         Save your Top 5, Watchlist, and Ratings to a public profile so Friends can view them.
       </p>
+
+      {/* Current identity */}
+      <div className="text-xs text-gray-400 mt-2">
+        Current commenting identity: <span className="font-medium">{identityLabel}</span>
+      </div>
 
       <div className="grid sm:grid-cols-3 gap-3 mt-4">
         <div className="sm:col-span-2">
@@ -166,13 +218,20 @@ export default function PublishProfile() {
             )}
           </select>
         </div>
-        <div className="self-end">
+        <div className="self-end grid grid-cols-1 gap-2">
           <button
             onClick={publish}
             disabled={saving || !username}
             className="w-full bg-green-600 hover:bg-green-500 px-4 py-2 rounded disabled:opacity-60"
           >
             {saving ? "Publishing…" : "Publish"}
+          </button>
+          <button
+            onClick={useAsIdentity}
+            disabled={!username}
+            className="w-full bg-gray-700 hover:bg-gray-600 px-4 py-2 rounded disabled:opacity-60"
+          >
+            Use as my identity
           </button>
         </div>
       </div>
