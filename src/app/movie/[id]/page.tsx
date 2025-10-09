@@ -1,106 +1,131 @@
 // src/app/movie/[id]/page.tsx
-export const revalidate = 86400; // revalidate once per day
+export const revalidate = 3600; // cache TMDb data for 1 hour (server-side)
 
 import LocalRating from "../../../components/LocalRating";
-import WatchlistButton from "../../../components/WatchlistButton";
 import TopFiveButton from "../../../components/TopFiveButton";
+import Comments from "../../../components/Comments";
 
-async function getMovie(id: string) {
-  const key = process.env.TMDB_API_KEY;
-  if (!key) throw new Error("Missing TMDB_API_KEY");
-  const url = `https://api.themoviedb.org/3/movie/${id}?api_key=${key}&append_to_response=credits`;
-  const res = await fetch(url, { next: { revalidate } });
-  if (!res.ok) throw new Error("Movie fetch failed");
-  return res.json();
+type TMDbMovie = {
+  id: number;
+  title: string;
+  overview?: string;
+  poster_path?: string | null;
+  release_date?: string;
+  runtime?: number;
+  genres?: { id: number; name: string }[];
+};
+
+type TMDbCredits = {
+  cast?: { id: number; name: string; character?: string; profile_path?: string | null }[];
+};
+
+function posterUrl(p: string | null | undefined, size: "w342" | "w500" = "w342") {
+  return p ? `https://image.tmdb.org/t/p/${size}${p}` : "https://via.placeholder.com/342x513?text=No+Poster";
 }
 
-export default async function MoviePage({
-  params,
-}: {
-  params: { id: string };
-}) {
-  const data = await getMovie(params.id);
-  const title = data.title || "Untitled";
-  const year = data.release_date ? ` (${data.release_date.slice(0, 4)})` : "";
-  const overview = data.overview || "No description available.";
-  const poster = data.poster_path
-    ? `https://image.tmdb.org/t/p/w500${data.poster_path}`
-    : null;
-  const cast =
-    Array.isArray(data?.credits?.cast)
-      ? data.credits.cast.slice(0, 10).map((c: any) => c.name).join(", ")
-      : "";
+function yearOf(date?: string) {
+  return date && date.length >= 4 ? date.slice(0, 4) : "";
+}
+
+async function getMovie(id: string): Promise<TMDbMovie | null> {
+  const key = process.env.TMDB_API_KEY;
+  if (!key) return null;
+  try {
+    const r = await fetch(
+      `https://api.themoviedb.org/3/movie/${id}?api_key=${key}&language=en-US`,
+      { next: { revalidate } }
+    );
+    if (!r.ok) return null;
+    return await r.json();
+  } catch {
+    return null;
+  }
+}
+
+async function getCredits(id: string): Promise<TMDbCredits | null> {
+  const key = process.env.TMDB_API_KEY;
+  if (!key) return null;
+  try {
+    const r = await fetch(
+      `https://api.themoviedb.org/3/movie/${id}/credits?api_key=${key}&language=en-US`,
+      { next: { revalidate } }
+    );
+    if (!r.ok) return null;
+    return await r.json();
+  } catch {
+    return null;
+  }
+}
+
+export default async function MoviePage({ params }: { params: { id: string } }) {
+  const movie = await getMovie(params.id);
+  const credits = await getCredits(params.id);
+
+  if (!movie) {
+    return (
+      <div className="card">
+        <h1 className="text-2xl font-bold">Movie not found</h1>
+        <p className="text-gray-400 mt-2">
+          We couldn’t load this title. Please try again later.
+        </p>
+      </div>
+    );
+  }
+
+  const cast = (credits?.cast || []).slice(0, 10); // show top 10 cast
+  const genres = (movie.genres || []).map((g) => g.name).join(", ");
+  const relYear = yearOf(movie.release_date);
 
   return (
-    <div className="space-y-6">
-      <div className="grid md:grid-cols-3 gap-6">
-        <div className="md:col-span-1">
-          <div className="bg-gray-800 rounded-xl overflow-hidden">
-            {poster ? (
-              <img
-                src={poster}
-                alt={`Poster for ${title}${year}`}
-                className="w-full h-auto"
-              />
-            ) : (
-              <div className="p-6 text-gray-400 text-sm">No poster available</div>
+    <div className="space-y-8">
+      {/* Header: Poster + Basic info */}
+      <section className="card">
+        <div className="grid md:grid-cols-3 gap-6">
+          <div>
+            <img
+              src={posterUrl(movie.poster_path, "w342")}
+              alt={`Poster for ${movie.title}${relYear ? ` (${relYear})` : ""}`}
+              className="w-full h-auto rounded"
+              loading="lazy"
+            />
+          </div>
+
+          <div className="md:col-span-2 space-y-3">
+            <h1 className="text-3xl font-bold">
+              {movie.title} {relYear ? <span className="text-gray-400 font-normal">({relYear})</span> : null}
+            </h1>
+
+            {(genres || movie.runtime || movie.release_date) && (
+              <div className="text-sm text-gray-300 space-y-1">
+                {genres && genres.length > 0 && <div><span className="text-gray-400">Genres:</span> {genres}</div>}
+                {movie.runtime ? (
+                  <div><span className="text-gray-400">Runtime:</span> {movie.runtime} min</div>
+                ) : null}
+                {movie.release_date ? (
+                  <div><span className="text-gray-400">Release:</span> {movie.release_date}</div>
+                ) : null}
+              </div>
             )}
-          </div>
-        </div>
 
-        <div className="md:col-span-2">
-          <h1 className="text-3xl font-bold">
-            {title}{year}
-          </h1>
-          <p className="text-gray-300 mt-3">{overview}</p>
+            {movie.overview && (
+              <p className="text-gray-200 leading-relaxed">{movie.overview}</p>
+            )}
 
-          <div className="mt-6 space-y-5">
-            <div>
-              <span className="text-gray-400 text-sm">Cast: </span>
-              <span className="text-gray-200">{cast || "—"}</span>
-            </div>
-
-            {/* Watchlist button */}
-            <div>
-              <div className="text-sm text-gray-400">Watchlist</div>
-              <div className="mt-2">
-                <WatchlistButton movieId={Number(params.id)} title={title} />
+            {/* Cast */}
+            {cast.length > 0 && (
+              <div className="text-sm">
+                <div className="font-semibold mb-1">Cast</div>
+                <ul className="list-disc list-inside text-gray-300 space-y-0.5">
+                  {cast.map((c) => (
+                    <li key={c.id}>
+                      <span className="font-medium">{c.name}</span>
+                      {c.character ? <span className="text-gray-400"> as {c.character}</span> : null}
+                    </li>
+                  ))}
+                </ul>
               </div>
-            </div>
+            )}
 
-            {/* Your Rating (saved in browser for now) */}
-            <div>
-              <div className="text-sm text-gray-400">Your Rating</div>
-              <div className="mt-2 bg-gray-800 rounded p-3">
-                <LocalRating movieId={Number(params.id)} title={title} />
-              </div>
-            </div>
-
-            {/* Top 5 */}
-            <div>
-              <div className="text-sm text-gray-400">Top 5</div>
-              <div className="mt-2">
-                <TopFiveButton movieId={Number(params.id)} title={title} />
-              </div>
-              <div className="text-xs text-gray-500 mt-1">
-                (Max 5. You must set a rating before adding to Top 5.)
-              </div>
-            </div>
-
-            {/* Comments placeholder for later */}
-            <div>
-              <div className="text-sm text-gray-400">Comments (coming soon)</div>
-              <div className="mt-2 bg-gray-800 rounded p-3 text-gray-500">
-                Nested thread will appear here.
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <a href="/search" className="text-blue-400 hover:text-blue-300 text-sm">
-        ← Back to Search
-      </a>
-    </div>
-  );
-}
+            {/* Actions: Rating + Top 5 */}
+            <div className="mt-4 grid sm:grid-cols-2 gap-4">
+              <div className="p-3 bg-gray-900 border border-gray-800 rounded">
