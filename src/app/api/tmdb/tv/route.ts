@@ -24,9 +24,9 @@ export async function GET(req: NextRequest) {
     const data = await r.json();
     const raw = Array.isArray(data?.results) ? data.results : [];
 
-    // Normalize fields to match your movie card expectations
+    // Normalize to match movie shape and keep posters only
     const results = raw
-      .filter((t: any) => t && t.id && t.name && t.poster_path) // posters only
+      .filter((t: any) => t && t.id && t.name && t.poster_path)
       .map((t: any) => ({
         id: t.id,
         title: t.name,
