@@ -2,31 +2,33 @@
 import TopFiveGallery from "../../../components/TopFiveGallery";
 import WatchlistGallery from "../../../components/WatchlistGallery";
 import RatedGallery from "../../../components/RatedGallery";
+import PublishProfile from "../../../components/PublishProfile";
 
 export default function MyProfilePage() {
   return (
-    <div className="space-y-6">
+    <div className="space-y-8">
       <section className="card">
-        <h2 className="text-xl font-semibold">My Top 5</h2>
-        <p className="text-gray-400 text-sm mb-3">
-          Add movies to your Top 5 from any movie page.
+        <h1 className="text-2xl font-bold">My Profile</h1>
+        <p className="text-gray-400 text-sm mt-1">
+          Your Top 5, Watchlist, and Ratings are saved in your browser.
         </p>
+      </section>
+
+      {/* Publish to a public profile under a Friend username */}
+      <PublishProfile />
+
+      <section className="card">
+        <h2 className="text-xl font-semibold">Top 5</h2>
         <TopFiveGallery />
       </section>
 
       <section className="card">
         <h2 className="text-xl font-semibold">Watchlist</h2>
-        <p className="text-gray-400 text-sm mb-3">
-          Add a movie to your Watchlist on its movie page. Rating a movie will automatically remove it from the Watchlist.
-        </p>
         <WatchlistGallery />
       </section>
 
       <section className="card">
         <h2 className="text-xl font-semibold">Rated</h2>
-        <p className="text-gray-400 text-sm mb-3">
-          Movies you&apos;ve rated, sorted by rating (ties by most recent).
-        </p>
         <RatedGallery />
       </section>
     </div>
