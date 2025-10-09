@@ -1,7 +1,7 @@
 // src/app/trending/page.tsx
 // Shows two sections:
-// 1) TMDb global trending (read via TMDb key)
-// 2) Friends' Trending (latest activity stored in Upstash Redis)
+// 1) TMDb global trending (posters first)
+// 2) Friends' Trending (posters first, then newest)
 
 export const revalidate = 3600; // revalidate TMDb section hourly
 
@@ -31,6 +31,25 @@ function posterUrl(p: string | null | undefined, size: "w185" | "w342" | "w92" =
       : "https://via.placeholder.com/185x278?text=No+Poster";
 }
 
+// Posters first; then newer release date; then title
+function posterFirstSortMovie(a: Movie, b: Movie) {
+  const ap = a.poster_path ? 0 : 1;
+  const bp = b.poster_path ? 0 : 1;
+  if (ap !== bp) return ap - bp; // posters first
+  const ay = a.release_date || "";
+  const by = b.release_date || "";
+  if (ay !== by) return (by || "").localeCompare(ay || ""); // newer first
+  return (a.title || "").localeCompare(b.title || "");
+}
+
+// Posters first; then most recent activity
+function posterFirstSortEvent(a: Event, b: Event) {
+  const ap = a.poster_path ? 0 : 1;
+  const bp = b.poster_path ? 0 : 1;
+  if (ap !== bp) return ap - bp;
+  return (b.at || 0) - (a.at || 0);
+}
+
 async function getTmdbTrending(): Promise<Movie[]> {
   const key = process.env.TMDB_API_KEY;
   if (!key) return [];
@@ -39,7 +58,9 @@ async function getTmdbTrending(): Promise<Movie[]> {
     const r = await fetch(url, { next: { revalidate } });
     if (!r.ok) return [];
     const data = await r.json();
-    return Array.isArray(data?.results) ? (data.results as Movie[]) : [];
+    const list: Movie[] = Array.isArray(data?.results) ? data.results : [];
+    // posters first before we take the top N
+    return list.sort(posterFirstSortMovie);
   } catch {
     return [];
   }
@@ -47,22 +68,25 @@ async function getTmdbTrending(): Promise<Movie[]> {
 
 async function getFriendsTrending(): Promise<Event[]> {
   try {
-    // Read most recent 50 events directly from Redis (same as GET /api/activity/recent)
-    const raw = await redis.lrange<string>("activity", 0, 49);
+    // Most recent 50 events
+    const raw = (await redis.lrange("activity", 0, 49)) as unknown[];
     const events: Event[] = [];
-    for (const s of raw) {
-      try {
-        const e = JSON.parse(s) as Event;
-        if (e && typeof e.movieId === "number" && typeof e.at === "number") {
-          events.push(e);
+    for (const item of raw) {
+      let e: any = item;
+      if (typeof item === "string") {
+        try {
+          e = JSON.parse(item);
+        } catch {
+          continue;
         }
-      } catch {
-        // ignore malformed
+      }
+      if (e && typeof e.movieId === "number" && typeof e.at === "number") {
+        events.push(e as Event);
       }
     }
-    return events;
+    // posters first, then most recent
+    return events.sort(posterFirstSortEvent);
   } catch {
-    // Redis not available or misconfigured
     return [];
   }
 }
@@ -76,7 +100,7 @@ export default async function TrendingPage() {
       <section className="card">
         <h2 className="text-xl font-semibold">🔥 TMDb Trending</h2>
         <p className="text-gray-400 text-sm mb-4">
-          Global trending movies (from TMDb).
+          Global trending movies (from TMDb). Posters first.
         </p>
         {tmdb.length === 0 ? (
           <div className="text-gray-400">No trending results available.</div>
@@ -110,7 +134,7 @@ export default async function TrendingPage() {
       <section className="card">
         <h2 className="text-xl font-semibold">👥 Friends’ Trending</h2>
         <p className="text-gray-400 text-sm mb-4">
-          Latest activity from everyone using this app (ratings, watchlist, Top 5).
+          Latest activity from everyone using this app. Posters first.
         </p>
 
         {friends.length === 0 ? (
