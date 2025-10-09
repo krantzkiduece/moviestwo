@@ -1,26 +1,19 @@
-// src/app/api/tmdb/tv/route.ts
-// TV search via TMDb: GET /api/tmdb/tv?q=...
-// Returns minimal fields with posters only.
-
 import { NextRequest, NextResponse } from "next/server";
 
-type TvResult = {
-  id: number;
-  name: string;
-  first_air_date?: string;
-  poster_path?: string | null;
-};
-
+// GET /api/tmdb/tv?q=the%20office
 export async function GET(req: NextRequest) {
-  try {
-    const key = process.env.TMDB_API_KEY;
-    if (!key) {
-      return NextResponse.json({ results: [], error: "TMDB_API_KEY missing" }, { status: 500 });
-    }
-    const { searchParams } = new URL(req.url);
-    const q = (searchParams.get("q") || "").trim();
-    if (!q) return NextResponse.json({ results: [] });
+  const key = process.env.TMDB_API_KEY;
+  if (!key) {
+    return NextResponse.json(
+      { results: [], error: "TMDB_API_KEY missing" },
+      { status: 500 }
+    );
+  }
 
+  const q = new URL(req.url).searchParams.get("q")?.trim() || "";
+  if (!q) return NextResponse.json({ results: [] });
+
+  try {
     const url = `https://api.themoviedb.org/3/search/tv?api_key=${key}&language=en-US&include_adult=false&page=1&query=${encodeURIComponent(
       q
     )}`;
@@ -29,21 +22,24 @@ export async function GET(req: NextRequest) {
     if (!r.ok) return NextResponse.json({ results: [] });
 
     const data = await r.json();
-    const raw: TvResult[] = Array.isArray(data?.results) ? data.results : [];
+    const raw = Array.isArray(data?.results) ? data.results : [];
 
-    // Keep only entries with posters, normalize fields, and cap to 8
+    // Normalize to match your movie result shape and keep posters only
     const results = raw
-      .filter((t) => !!t.poster_path && !!t.id && !!t.name)
-      .slice(0, 8)
-      .map((t) => ({
+      .filter((t: any) => t && t.id && t.name && t.poster_path)
+      .map((t: any) => ({
         id: t.id,
-        title: t.name, // normalize to "title" for UI reuse
-        release_date: t.first_air_date || null, // normalize to "release_date"
+        title: t.name,                // keep a consistent "title" field for UI reuse
+        release_date: t.first_air_date || null,
         poster_path: t.poster_path || null,
-      }));
+      }))
+      .slice(0, 12);
 
     return NextResponse.json({ results });
-  } catch {
-    return NextResponse.json({ results: [] });
+  } catch (e: any) {
+    return NextResponse.json(
+      { results: [], error: e?.message || "fetch failed" },
+      { status: 500 }
+    );
   }
 }
