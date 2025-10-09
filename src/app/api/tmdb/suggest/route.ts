@@ -35,8 +35,17 @@ function inYearRange(dateStr: string | undefined, from?: number, to?: number) {
 function matchesGenres(movie: MiniMovie, wanted: number[] | null) {
   if (!wanted || wanted.length === 0) return true;
   const g = movie.genre_ids || [];
-  // require intersection with selected genres
   return g.some((id) => wanted.includes(id));
+}
+
+function posterFirstSort(a: MiniMovie, b: MiniMovie) {
+  const ap = a.poster_path ? 0 : 1;
+  const bp = b.poster_path ? 0 : 1;
+  if (ap !== bp) return ap - bp; // posters first
+  const ay = a.release_date || "";
+  const by = b.release_date || "";
+  if (ay !== by) return (by || "").localeCompare(ay || ""); // newer first
+  return (a.title || "").localeCompare(b.title || "");
 }
 
 export async function GET(req: NextRequest) {
@@ -62,8 +71,7 @@ export async function GET(req: NextRequest) {
           .filter((n) => Number.isFinite(n))
       : null;
 
-    // If an actor is chosen, return their FULL movie credits (no 12-item cap),
-    // filtered by year and selected genres (if provided).
+    // If an actor is chosen: return full filmography (filtered), posters first
     if (actorName) {
       const actorId = await findActorId(actorName, key);
       if (!actorId) return NextResponse.json({ results: [] });
@@ -89,26 +97,15 @@ export async function GET(req: NextRequest) {
           }))
         : [];
 
-      // Filter by year + genre (if provided), de-duplicate by id
-      const map = new Map<number, MiniMovie>();
-      for (const m of list) {
-        if (!inYearRange(m.release_date, fromYear, toYear)) continue;
-        if (!matchesGenres(m, wantedGenres)) continue;
-        map.set(m.id, m);
-      }
+      const filtered = list.filter(
+        (m) => inYearRange(m.release_date, fromYear, toYear) && matchesGenres(m, wantedGenres)
+      );
 
-      // Sort by most recent release date (fallback to title)
-      const results = Array.from(map.values()).sort((a, b) => {
-        const ay = a.release_date ? a.release_date : "";
-        const by = b.release_date ? b.release_date : "";
-        if (ay !== by) return (by || "").localeCompare(ay || "");
-        return (a.title || "").localeCompare(b.title || "");
-      });
-
+      const results = filtered.sort(posterFirstSort);
       return NextResponse.json({ results });
     }
 
-    // Otherwise (no actor), use Discover. Keep a smaller set.
+    // Otherwise (no actor): Discover results, posters first, then take top 12
     const params = new URLSearchParams({
       api_key: key,
       language: "en-US",
@@ -136,7 +133,7 @@ export async function GET(req: NextRequest) {
       );
     }
     const data = await r.json();
-    const results: MiniMovie[] = Array.isArray(data?.results)
+    const list: MiniMovie[] = Array.isArray(data?.results)
       ? data.results.map((m: any) => ({
           id: m.id,
           title: m.title,
@@ -145,8 +142,8 @@ export async function GET(req: NextRequest) {
         }))
       : [];
 
-    // For the non-actor path, return a smaller set (keeps UI snappy).
-    return NextResponse.json({ results: results.slice(0, 12) });
+    const sorted = list.sort(posterFirstSort);
+    return NextResponse.json({ results: sorted.slice(0, 12) });
   } catch (e: any) {
     return NextResponse.json({ error: e?.message || "Unknown error" }, { status: 500 });
   }
