@@ -49,13 +49,12 @@ export default function FriendsPage() {
                   <div className="font-medium">{f.displayName}</div>
                   <div className="text-xs text-gray-400">@{f.username}</div>
                 </div>
-                {/* In a future step, these can link to public profiles */}
                 <a
                   className="text-blue-400 hover:text-blue-300 text-sm"
-                  href="/trending"
-                  title="See what’s trending"
+                  href={`/u/${encodeURIComponent(f.username)}`}
+                  title={`View ${f.displayName}'s profile`}
                 >
-                  View Trending
+                  View Profile
                 </a>
               </li>
             ))}
