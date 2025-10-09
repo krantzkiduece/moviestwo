@@ -34,15 +34,13 @@ function readAllRatings(): RatedItem[] {
 
       try {
         const parsed = JSON.parse(raw);
-        if (typeof parsed?.value === "number") {
-          value = parsed.value;
-          if (typeof parsed?.updatedAt === "number") updatedAt = parsed.updatedAt;
+        if (parsed && typeof parsed === "object" && "value" in parsed) {
+          value = Number(parsed.value);
+          if (typeof parsed.updatedAt === "number") updatedAt = parsed.updatedAt;
         } else {
-          // not an object → fall back to number string
           value = parseFloat(raw);
         }
       } catch {
-        // raw is a simple number string
         value = parseFloat(raw);
       }
 
@@ -62,9 +60,23 @@ function posterUrl(p: string | null | undefined, size: "w185" | "w342" = "w185")
     : "https://via.placeholder.com/185x278?text=No+Poster";
 }
 
+function SectionHeader({ stars }: { stars: number }) {
+  return (
+    <div className="flex items-center gap-2 mb-3 mt-6">
+      <div className="text-yellow-300">
+        {"★".repeat(stars)}
+        {"☆".repeat(5 - stars)}
+      </div>
+      <div className="text-gray-300 font-semibold">{stars}-Star</div>
+    </div>
+  );
+}
+
 export default function RatedGallery() {
   const [rated, setRated] = useState<RatedItem[]>([]);
-  const [movies, setMovies] = useState<(Movie & { rating: number; updatedAt?: number })[]>([]);
+  const [byBucket, setByBucket] = useState<
+    Record<number, (Movie & { rating: number; updatedAt?: number })[]>
+  >({ 1: [], 2: [], 3: [], 4: [], 5: [] });
   const [loading, setLoading] = useState(false);
 
   // Load ratings from localStorage
@@ -72,10 +84,10 @@ export default function RatedGallery() {
     setRated(readAllRatings());
   }, []);
 
-  // Fetch details for each rated movie
+  // Fetch details and group into buckets (5..1), rounding DOWN (e.g., 4.5 -> 4)
   useEffect(() => {
     if (!rated.length) {
-      setMovies([]);
+      setByBucket({ 1: [], 2: [], 3: [], 4: [], 5: [] });
       return;
     }
     let cancelled = false;
@@ -93,54 +105,95 @@ export default function RatedGallery() {
               release_date: d.release_date,
               poster_path: d.poster_path,
             };
-            return { ...m, rating: r.value, updatedAt: r.updatedAt };
+            // Bucket: round DOWN to an integer 1..5; ignore <1
+            const bucket = Math.floor(r.value);
+            return { movie: m, rating: r.value, updatedAt: r.updatedAt, bucket };
           })
         );
-        if (!cancelled) {
-          // Sort by rating DESC, then updatedAt DESC (if available)
-          results.sort((a, b) => {
-            if (b.rating !== a.rating) return b.rating - a.rating;
-            const at = a.updatedAt ?? 0;
-            const bt = b.updatedAt ?? 0;
-            return bt - at;
-          });
-          setMovies(results);
+
+        if (cancelled) return;
+
+        const grouped: Record<number, (Movie & { rating: number; updatedAt?: number })[]> = {
+          1: [],
+          2: [],
+          3: [],
+          4: [],
+          5: [],
+        };
+
+        for (const item of results) {
+          if (!item) continue;
+          const b = item.bucket;
+          if (b >= 1 && b <= 5) {
+            grouped[b].push({ ...item.movie, rating: item.rating, updatedAt: item.updatedAt });
+          }
+          // ratings that round down to 0 are not shown in any section by design
         }
+
+        // Sort each bucket by latest (if available), otherwise title
+        for (const b of [5, 4, 3, 2, 1]) {
+          grouped[b].sort((a, b_) => {
+            const at = a.updatedAt ?? 0;
+            const bt = b_.updatedAt ?? 0;
+            if (bt !== at) return bt - at; // latest first
+            // fallback: alphabetical
+            return a.title.localeCompare(b_.title);
+          });
+        }
+
+        setByBucket(grouped);
       } catch {
-        if (!cancelled) setMovies([]);
+        if (!cancelled) {
+          setByBucket({ 1: [], 2: [], 3: [], 4: [], 5: [] });
+        }
       } finally {
         if (!cancelled) setLoading(false);
       }
     })();
+
     return () => {
       cancelled = true;
     };
   }, [rated]);
 
   if (loading) return <div className="text-gray-300">Loading Rated…</div>;
-  if (!rated.length) return <div className="text-gray-400">You haven’t rated any movies yet.</div>;
+  if (!rated.length)
+    return <div className="text-gray-400">You haven’t rated any movies yet.</div>;
 
   return (
-    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-4">
-      {movies.map((m) => {
-        const year = m.release_date ? ` (${m.release_date.slice(0, 4)})` : "";
+    <div>
+      {[5, 4, 3, 2, 1].map((stars) => {
+        const items = byBucket[stars] || [];
+        if (!items.length) return null;
         return (
-          <a
-            key={m.id}
-            href={`/movie/${m.id}`}
-            className="bg-gray-800 rounded-lg overflow-hidden hover:ring-2 hover:ring-blue-500"
-          >
-            <img
-              src={posterUrl(m.poster_path, "w185")}
-              alt={`Poster for ${m.title}${year}`}
-              className="w-full h-auto"
-              loading="lazy"
-            />
-            <div className="p-2 text-sm">
-              <div className="font-medium truncate">{m.title}{year}</div>
-              <div className="text-xs text-yellow-300 mt-1">★ {m.rating.toFixed(1)} / 5</div>
+          <section key={stars}>
+            <SectionHeader stars={stars} />
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-4">
+              {items.map((m) => {
+                const year = m.release_date ? ` (${m.release_date.slice(0, 4)})` : "";
+                return (
+                  <a
+                    key={m.id}
+                    href={`/movie/${m.id}`}
+                    className="bg-gray-800 rounded-lg overflow-hidden hover:ring-2 hover:ring-blue-500"
+                  >
+                    <img
+                      src={posterUrl(m.poster_path, "w185")}
+                      alt={`Poster for ${m.title}${year}`}
+                      className="w-full h-auto"
+                      loading="lazy"
+                    />
+                    <div className="p-2 text-sm">
+                      <div className="font-medium truncate">{m.title}{year}</div>
+                      <div className="text-xs text-yellow-300 mt-1">
+                        ★ {m.rating.toFixed(1)} / 5
+                      </div>
+                    </div>
+                  </a>
+                );
+              })}
             </div>
-          </a>
+          </section>
         );
       })}
     </div>
