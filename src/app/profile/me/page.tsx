@@ -1,6 +1,7 @@
 // src/app/profile/me/page.tsx
 import TopFiveGallery from "../../../components/TopFiveGallery";
 import WatchlistGallery from "../../../components/WatchlistGallery";
+import RatedGallery from "../../../components/RatedGallery";
 
 export default function MyProfilePage() {
   return (
@@ -23,7 +24,10 @@ export default function MyProfilePage() {
 
       <section className="card">
         <h2 className="text-xl font-semibold">Rated</h2>
-        <p className="text-gray-400">Coming soon.</p>
+        <p className="text-gray-400 text-sm mb-3">
+          Movies you&apos;ve rated, sorted by rating (ties by most recent).
+        </p>
+        <RatedGallery />
       </section>
     </div>
   );
