@@ -30,7 +30,7 @@ export default function SearchBar() {
   const [peopleResults, setPeopleResults] = useState<Person[]>([]);
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [ix, setIx] = useState<number>(-1); // keyboard highlight over the flattened list
+  const [ix, setIx] = useState<number>(-1); // keyboard highlight over flattened list
 
   const wrapRef = useRef<HTMLDivElement | null>(null);
   const inputRef = useRef<HTMLInputElement | null>(null);
@@ -86,20 +86,20 @@ export default function SearchBar() {
     };
   }, [dq]);
 
-  // Flattened list for keyboard navigation (with markers)
+  // Flattened list for keyboard navigation (Actors first)
   const flat = useMemo(() => {
     const items: Array<
       | { kind: "label"; text: string }
       | { kind: "movie"; m: MiniMovie }
       | { kind: "person"; p: Person }
     > = [];
-    if (movieResults.length) {
-      items.push({ kind: "label", text: "Movies" });
-      for (const m of movieResults) items.push({ kind: "movie", m });
-    }
     if (peopleResults.length) {
       items.push({ kind: "label", text: "Actors" });
       for (const p of peopleResults) items.push({ kind: "person", p });
+    }
+    if (movieResults.length) {
+      items.push({ kind: "label", text: "Movies" });
+      for (const m of movieResults) items.push({ kind: "movie", m });
     }
     return items;
   }, [movieResults, peopleResults]);
@@ -119,7 +119,6 @@ export default function SearchBar() {
     window.location.href = `/movie/${id}`;
   };
   const goActor = (id: number) => {
-    // Opens the existing suggestions page filtered by actor
     window.location.href = `/suggestions?actorId=${id}`;
   };
 
@@ -160,7 +159,7 @@ export default function SearchBar() {
       <input
         ref={inputRef}
         className="w-full bg-gray-900 border border-gray-700 rounded px-3 py-2"
-        placeholder="Search movies or actors…"
+        placeholder="Search actors or movies…"
         value={q}
         onChange={(e) => {
           setQ(e.target.value);
@@ -190,51 +189,51 @@ export default function SearchBar() {
                     </li>
                   );
                 }
-                if (item.kind === "movie") {
-                  const m = item.m;
-                  const year = m.release_date ? " (" + m.release_date.slice(0, 4) + ")" : "";
+                if (item.kind === "person") {
+                  const p = item.p;
                   const active = i === ix;
                   return (
                     <li
-                      key={`m-${m.id}`}
+                      key={`p-${p.id}`}
                       className={`px-3 py-2 flex items-center gap-3 cursor-pointer ${active ? "bg-gray-800" : "hover:bg-gray-800"}`}
                       onMouseEnter={() => setIx(i)}
                       onMouseDown={(e) => e.preventDefault()}
-                      onClick={() => goMovie(m.id)}
+                      onClick={() => goActor(p.id)}
                     >
                       <img
-                        src={posterUrl(m.poster_path, "w92")}
-                        alt={`Poster for ${m.title}${year}`}
-                        className="w-10 h-auto rounded"
+                        src={headshotUrl(p.profile_path, "w92")}
+                        alt={`Headshot of ${p.name}`}
+                        className="w-10 h-10 object-cover rounded"
                         loading="lazy"
                       />
                       <div className="min-w-0">
-                        <div className="text-sm font-medium truncate">{m.title}{year}</div>
-                        <div className="text-xs text-gray-400">Movie</div>
+                        <div className="text-sm font-medium truncate">{p.name}</div>
+                        <div className="text-xs text-gray-400">{p.known_for_department || "Actor"}</div>
                       </div>
                     </li>
                   );
                 }
-                // person
-                const p = item.p;
+                // movie
+                const m = item.m;
+                const year = m.release_date ? " (" + m.release_date.slice(0, 4) + ")" : "";
                 const active = i === ix;
                 return (
                   <li
-                    key={`p-${p.id}`}
+                    key={`m-${m.id}`}
                     className={`px-3 py-2 flex items-center gap-3 cursor-pointer ${active ? "bg-gray-800" : "hover:bg-gray-800"}`}
                     onMouseEnter={() => setIx(i)}
                     onMouseDown={(e) => e.preventDefault()}
-                    onClick={() => goActor(p.id)}
+                    onClick={() => goMovie(m.id)}
                   >
                     <img
-                      src={headshotUrl(p.profile_path, "w92")}
-                      alt={`Headshot of ${p.name}`}
-                      className="w-10 h-10 object-cover rounded"
+                      src={posterUrl(m.poster_path, "w92")}
+                      alt={`Poster for ${m.title}${year}`}
+                      className="w-10 h-auto rounded"
                       loading="lazy"
                     />
                     <div className="min-w-0">
-                      <div className="text-sm font-medium truncate">{p.name}</div>
-                      <div className="text-xs text-gray-400">{p.known_for_department || "Actor"}</div>
+                      <div className="text-sm font-medium truncate">{m.title}{year}</div>
+                      <div className="text-xs text-gray-400">Movie</div>
                     </div>
                   </li>
                 );
