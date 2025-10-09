@@ -1,4 +1,4 @@
-export const revalidate = 600; // cache trending for 10 minutess
+export const revalidate = 600; // cache trending for 10 minutes
 
 type TvItem = {
   id: number;
@@ -38,41 +38,41 @@ async function fetchTrendingTV(): Promise<TvItem[]> {
 
 async function searchTV(q: string): Promise<TvItem[]> {
   if (!q.trim()) return [];
+  // call our API route first (works in production), fall back to TMDb direct if needed
+  try {
+    const r = await fetch(`/api/tmdb/tv?q=${encodeURIComponent(q)}`, { cache: "no-store" });
+    if (r.ok) {
+      const data = await r.json();
+      const list = Array.isArray(data?.results) ? data.results : [];
+      return list;
+    }
+  } catch {
+    // fall through to direct TMDb fetch
+  }
+
+  const key = process.env.TMDB_API_KEY;
+  if (!key) return [];
   try {
     const r = await fetch(
-      `${process.env.NEXT_PUBLIC_BASE_URL ?? ""}/api/tmdb/tv?q=${encodeURIComponent(q)}`,
+      `https://api.themoviedb.org/3/search/tv?api_key=${key}&language=en-US&include_adult=false&page=1&query=${encodeURIComponent(
+        q
+      )}`,
       { cache: "no-store" }
     );
     if (!r.ok) return [];
     const data = await r.json();
     const list = Array.isArray(data?.results) ? data.results : [];
-    return list;
+    return list
+      .filter((t: any) => t?.poster_path)
+      .map((t: any) => ({
+        id: t.id,
+        title: t.name,
+        release_date: t.first_air_date || null,
+        poster_path: t.poster_path || null,
+      }))
+      .slice(0, 24);
   } catch {
-    // Fallback: call TMDb directly if NEXT_PUBLIC_BASE_URL isn't set
-    const key = process.env.TMDB_API_KEY;
-    if (!key) return [];
-    try {
-      const r = await fetch(
-        `https://api.themoviedb.org/3/search/tv?api_key=${key}&language=en-US&include_adult=false&page=1&query=${encodeURIComponent(
-          q
-        )}`,
-        { cache: "no-store" }
-      );
-      if (!r.ok) return [];
-      const data = await r.json();
-      const list = Array.isArray(data?.results) ? data.results : [];
-      return list
-        .filter((t: any) => t?.poster_path)
-        .map((t: any) => ({
-          id: t.id,
-          title: t.name,
-          release_date: t.first_air_date || null,
-          poster_path: t.poster_path || null,
-        }))
-        .slice(0, 24);
-    } catch {
-      return [];
-    }
+    return [];
   }
 }
 
@@ -118,7 +118,7 @@ export default async function TvPage({
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 lg:grid-cols-6 gap-4">
             {items.map((t) => {
               const year = t.release_date ? ` (${t.release_date.slice(0, 4)})` : "";
-              // Link to TMDb TV page to avoid adding a new detail page right now
+              // Link out to TMDb TV page for now (keeps this change minimal)
               const href = `https://www.themoviedb.org/tv/${t.id}`;
               return (
                 <a
