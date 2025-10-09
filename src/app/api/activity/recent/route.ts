@@ -17,18 +17,22 @@ export async function GET(req: NextRequest) {
     const limitParam = Number(searchParams.get("limit") || "50");
     const limit = Math.min(Math.max(limitParam, 1), 200); // 1..200
 
-    // Most recent first (we lpush on write)
-    const raw = await redis.lrange<string>("activity", 0, limit - 1);
+    // Most recent first
+    const raw = (await redis.lrange("activity", 0, limit - 1)) as unknown[];
 
     const events: Event[] = [];
-    for (const s of raw) {
-      try {
-        const e = JSON.parse(s) as Event;
-        if (e && typeof e.movieId === "number" && typeof e.at === "number") {
-          events.push(e);
+    for (const item of raw) {
+      let e: any = item;
+      // Upstash client may already return parsed objects. If it's a string, parse.
+      if (typeof item === "string") {
+        try {
+          e = JSON.parse(item);
+        } catch {
+          continue; // skip malformed string
         }
-      } catch {
-        // ignore malformed event
+      }
+      if (e && typeof e.movieId === "number" && typeof e.at === "number") {
+        events.push(e as Event);
       }
     }
 
