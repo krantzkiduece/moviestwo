@@ -10,11 +10,7 @@ export const metadata = {
   description: "MoviesTwo / CineCircle App",
 };
 
-export default function RootLayout({
-  children,
-}: {
-  children: ReactNode;
-}) {
+export default function RootLayout({ children }: { children: ReactNode }) {
   const cookieStore = cookies();
   const user = cookieStore.get("cc_user")?.value;
 
@@ -23,12 +19,14 @@ export default function RootLayout({
       <body className={inter.className}>
         {!user ? (
           <div style={{ textAlign: "center", marginTop: "20vh" }}>
-            <h2>🔒 CineCircle Login</h2>
-            <form action="/api/login" method="post">
+            <h2>🎬 Welcome to CineCircle</h2>
+            <p>Enter your first name to continue:</p>
+            <form action="/api/validate" method="post">
               <input
                 type="text"
                 name="username"
-                placeholder="Enter admin username"
+                placeholder="Your first name"
+                required
                 style={{ padding: "8px", fontSize: "1em" }}
               />
               <button
@@ -39,7 +37,7 @@ export default function RootLayout({
                   fontSize: "1em",
                 }}
               >
-                Log In
+                Continue
               </button>
             </form>
           </div>
