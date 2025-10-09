@@ -7,7 +7,7 @@ export default function LocalRating({ movieId, title }: { movieId: number; title
   const [rating, setRating] = useState(0);
   const [saved, setSaved] = useState<null | string>(null);
 
-  // Read existing rating (supports old format "3.5" and simple string values)
+  // Read existing rating (supports old "3.5" and new JSON { value, updatedAt })
   useEffect(() => {
     try {
       const raw = localStorage.getItem(storageKey);
@@ -30,26 +30,24 @@ export default function LocalRating({ movieId, title }: { movieId: number; title
   const handleChange = async (v: number) => {
     setRating(v);
     try {
-      // keep simple storage (we can add timestamps later)
-      localStorage.setItem(storageKey, JSON.stringify({ value: v }));
+      // ✅ Save both value and a timestamp so Rated can sort “newest first”
+      localStorage.setItem(storageKey, JSON.stringify({ value: v, updatedAt: Date.now() }));
 
-      // Tell other components locally (so Watchlist auto-removes)
+      // Tell other components locally (Watchlist auto-removal, etc.)
       if (typeof window !== "undefined") {
         window.dispatchEvent(
           new CustomEvent("cinecircle:rated", { detail: { movieId, rating: v } })
         );
       }
 
-      // 🌟 Send an activity event to the server so it appears in Friends’ Trending
+      // Fire-and-forget: log to Friends’ Trending (ok if this fails silently)
       try {
         await fetch("/api/activity/post", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ type: "rated", movieId }),
         });
-      } catch {
-        // If this fails, ignore—local rating still works
-      }
+      } catch {}
 
       setSaved(`Saved ${v.toFixed(1)} ★`);
       setTimeout(() => setSaved(null), 1200);
