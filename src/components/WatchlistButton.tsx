@@ -1,19 +1,41 @@
+// src/components/WatchlistButton.tsx
 "use client";
+
 import { useEffect, useState } from "react";
+import { syncProfileDebounced } from "../lib/profileSync";
 
-type Item = { movieId: number; title?: string };
+type WatchItem = { movieId: number; title?: string };
 
-function getList(): Item[] {
+function getWatchlist(): WatchItem[] {
   try {
-    return JSON.parse(localStorage.getItem("watchlist") || "[]");
+    const raw = localStorage.getItem("watchlist");
+    const arr = raw ? (JSON.parse(raw) as unknown) : [];
+    if (!Array.isArray(arr)) return [];
+    // normalize
+    const out: WatchItem[] = [];
+    for (const it of arr) {
+      const id = Number((it as any)?.movieId ?? it);
+      if (Number.isFinite(id) && id > 0) out.push({ movieId: id, title: (it as any)?.title || undefined });
+    }
+    // de-dupe by movieId
+    const seen = new Set<number>();
+    return out.filter((w) => (seen.has(w.movieId) ? false : (seen.add(w.movieId), true)));
   } catch {
     return [];
   }
 }
-function saveList(list: Item[]) {
+
+function saveWatchlist(items: WatchItem[]) {
   try {
-    localStorage.setItem("watchlist", JSON.stringify(list));
+    localStorage.setItem("watchlist", JSON.stringify(items));
   } catch {}
+}
+
+// Broadcast so galleries can refresh
+function notifyWatchlistChanged() {
+  if (typeof window !== "undefined") {
+    window.dispatchEvent(new Event("cinecircle:watchlist-changed"));
+  }
 }
 
 async function sendActivity(type: "watchlist_added" | "watchlist_removed", movieId: number) {
@@ -24,63 +46,52 @@ async function sendActivity(type: "watchlist_added" | "watchlist_removed", movie
       body: JSON.stringify({ type, movieId }),
     });
   } catch {
-    // ignore network errors; local UI still works
+    // ignore network errors
   }
 }
 
-export default function WatchlistButton({
-  movieId,
-  title,
-}: {
-  movieId: number;
-  title?: string;
-}) {
+export default function WatchlistButton({ movieId, title }: { movieId: number; title?: string }) {
   const [inList, setInList] = useState(false);
+  const [msg, setMsg] = useState<string | null>(null);
 
-  // Initialize button state from localStorage
   useEffect(() => {
-    const list = getList();
-    setInList(list.some((i) => i.movieId === movieId));
-  }, [movieId]);
-
-  // Auto-remove from watchlist when this movie is rated
-  useEffect(() => {
-    const onRated = async (e: Event) => {
-      const detail = (e as CustomEvent).detail as { movieId: number; rating: number };
-      if (detail?.movieId === movieId) {
-        const list = getList().filter((i) => i.movieId !== movieId);
-        saveList(list);
-        setInList(false);
-        await sendActivity("watchlist_removed", movieId);
-      }
-    };
-    window.addEventListener("cinecircle:rated", onRated as EventListener);
-    return () => window.removeEventListener("cinecircle:rated", onRated as EventListener);
+    const items = getWatchlist();
+    setInList(items.some((w) => w.movieId === movieId));
   }, [movieId]);
 
   const toggle = async () => {
-    const list = getList();
-    if (inList) {
-      saveList(list.filter((i) => i.movieId !== movieId));
-      setInList(false);
-      await sendActivity("watchlist_removed", movieId);
-    } else {
-      list.push({ movieId, title });
-      saveList(list);
+    const items = getWatchlist();
+    if (!inList) {
+      items.unshift({ movieId, title });
+      saveWatchlist(items);
       setInList(true);
+      setMsg(`Added${title ? ` “${title}”` : ""} to Watchlist.`);
+      notifyWatchlistChanged();
+      syncProfileDebounced();                 // ✅ auto-sync public profile
       await sendActivity("watchlist_added", movieId);
+    } else {
+      const next = items.filter((w) => w.movieId !== movieId);
+      saveWatchlist(next);
+      setInList(false);
+      setMsg(`Removed${title ? ` “${title}”` : ""} from Watchlist.`);
+      notifyWatchlistChanged();
+      syncProfileDebounced();                 // ✅ auto-sync public profile
+      await sendActivity("watchlist_removed", movieId);
     }
+    setTimeout(() => setMsg(null), 1200);
   };
 
   return (
-    <button
-      onClick={toggle}
-      className={`px-3 py-2 rounded ${
-        inList ? "bg-gray-700" : "bg-blue-600 hover:bg-blue-500"
-      }`}
-      aria-pressed={inList}
-    >
-      {inList ? "✓ In Watchlist (click to remove)" : "＋ Add to Watchlist"}
-    </button>
+    <div>
+      <button
+        onClick={toggle}
+        className={`px-3 py-2 rounded ${inList ? "bg-gray-700" : "bg-emerald-600 hover:bg-emerald-500"}`}
+        aria-pressed={inList}
+      >
+        {inList ? "✓ In Watchlist (remove)" : "+ Add to Watchlist"}
+      </button>
+      {msg && <div className="text-xs mt-1 text-gray-300">{msg}</div>}
+      <div className="text-xs text-gray-500 mt-1">(Auto-synced.)</div>
+    </div>
   );
 }
