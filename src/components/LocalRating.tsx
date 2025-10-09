@@ -1,6 +1,8 @@
+// src/components/LocalRating.tsx
 "use client";
 import { useEffect, useState } from "react";
 import StarRating from "./StarRating";
+import { syncProfileDebounced } from "../lib/profileSync";
 
 export default function LocalRating({ movieId, title }: { movieId: number; title?: string }) {
   const storageKey = `rating:${movieId}`;
@@ -16,7 +18,7 @@ export default function LocalRating({ movieId, title }: { movieId: number; title
       try {
         const parsed = JSON.parse(raw);
         if (parsed && typeof parsed === "object" && "value" in parsed) {
-          value = Number(parsed.value);
+          value = Number((parsed as any).value);
         } else {
           value = parseFloat(raw);
         }
@@ -30,17 +32,17 @@ export default function LocalRating({ movieId, title }: { movieId: number; title
   const handleChange = async (v: number) => {
     setRating(v);
     try {
-      // ✅ Save both value and a timestamp so Rated can sort “newest first”
+      // Save locally with timestamp
       localStorage.setItem(storageKey, JSON.stringify({ value: v, updatedAt: Date.now() }));
 
-      // Tell other components locally (Watchlist auto-removal, etc.)
+      // Let other components react (e.g., WatchlistGallery refresh)
       if (typeof window !== "undefined") {
         window.dispatchEvent(
           new CustomEvent("cinecircle:rated", { detail: { movieId, rating: v } })
         );
       }
 
-      // Fire-and-forget: log to Friends’ Trending (ok if this fails silently)
+      // Best-effort activity log (Friends’ Trending)
       try {
         await fetch("/api/activity/post", {
           method: "POST",
@@ -48,6 +50,9 @@ export default function LocalRating({ movieId, title }: { movieId: number; title
           body: JSON.stringify({ type: "rated", movieId }),
         });
       } catch {}
+
+      // ✅ Auto-sync your public profile (no Publish step needed)
+      syncProfileDebounced();
 
       setSaved(`Saved ${v.toFixed(1)} ★`);
       setTimeout(() => setSaved(null), 1200);
@@ -63,7 +68,7 @@ export default function LocalRating({ movieId, title }: { movieId: number; title
         </span>
       </div>
       {saved && <div className="text-xs text-green-400 mt-1">{saved}</div>}
-      <div className="text-xs text-gray-500 mt-1">(Saved in your browser for now.)</div>
+      <div className="text-xs text-gray-500 mt-1">(Saved in your browser and auto-synced.)</div>
     </div>
   );
 }
