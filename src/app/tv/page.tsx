@@ -1,3 +1,4 @@
+// src/app/tv/page.tsx
 export const revalidate = 600; // cache trending for 10 minutes
 
 type TvItem = {
@@ -38,7 +39,7 @@ async function fetchTrendingTV(): Promise<TvItem[]> {
 
 async function searchTV(q: string): Promise<TvItem[]> {
   if (!q.trim()) return [];
-  // call our API route first (works in production), fall back to TMDb direct if needed
+  // Prefer our API route; it normalizes results
   try {
     const r = await fetch(`/api/tmdb/tv?q=${encodeURIComponent(q)}`, { cache: "no-store" });
     if (r.ok) {
@@ -118,14 +119,12 @@ export default async function TvPage({
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 lg:grid-cols-6 gap-4">
             {items.map((t) => {
               const year = t.release_date ? ` (${t.release_date.slice(0, 4)})` : "";
-              // Link out to TMDb TV page for now (keeps this change minimal)
-              const href = `https://www.themoviedb.org/tv/${t.id}`;
+              // Internal detail page:
+              const href = `/tv/${t.id}`;
               return (
                 <a
                   key={t.id}
                   href={href}
-                  target="_blank"
-                  rel="noopener noreferrer"
                   className="bg-gray-800 rounded-lg overflow-hidden hover:ring-2 hover:ring-blue-500"
                 >
                   <img
