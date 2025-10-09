@@ -1,50 +1,51 @@
-// src/app/layout.tsx
 import "./globals.css";
-import type { Metadata } from "next";
+import { cookies } from "next/headers";
+import { Inter } from "next/font/google";
+import { ReactNode } from "react";
 
-export const metadata: Metadata = {
+const inter = Inter({ subsets: ["latin"] });
+
+export const metadata = {
   title: "CineCircle",
-  description: "Friends’ movie & TV picks, ratings, watchlists, and top 5s",
+  description: "MoviesTwo / CineCircle App",
 };
 
 export default function RootLayout({
   children,
 }: {
-  children: React.ReactNode;
+  children: ReactNode;
 }) {
+  const cookieStore = cookies();
+  const user = cookieStore.get("cc_user")?.value;
+
   return (
     <html lang="en">
-      <body className="bg-gray-950 text-gray-100 min-h-screen">
-        {/* Top bar */}
-        <header className="border-b border-gray-800">
-          <div className="max-w-6xl mx-auto px-4 py-3 flex items-center justify-between gap-4">
-            <a href="/" className="font-bold tracking-wide hover:opacity-90">
-              CineCircle
-            </a>
-
-            {/* Simple search form (movies/TV/actors). Sends to Suggestions page which already handles search. */}
-            <form action="/suggestions" method="get" className="flex-1 max-w-xl">
+      <body className={inter.className}>
+        {!user ? (
+          <div style={{ textAlign: "center", marginTop: "20vh" }}>
+            <h2>🔒 CineCircle Login</h2>
+            <form action="/api/login" method="post">
               <input
                 type="text"
-                name="q"
-                placeholder="Search movies, TV shows, or actors…"
-                className="w-full bg-gray-900 border border-gray-700 rounded px-3 py-2 text-sm"
+                name="username"
+                placeholder="Enter admin username"
+                style={{ padding: "8px", fontSize: "1em" }}
               />
+              <button
+                type="submit"
+                style={{
+                  padding: "8px 16px",
+                  marginLeft: "8px",
+                  fontSize: "1em",
+                }}
+              >
+                Log In
+              </button>
             </form>
-
-            {/* Primary nav links (restore existing routes + add TV) */}
-            <nav className="flex items-center gap-5 text-sm">
-              <a href="/" className="hover:underline">Home</a>
-              <a href="/trending" className="hover:underline">Trending</a>
-              <a href="/tv" className="hover:underline">TV</a>
-              <a href="/suggestions" className="hover:underline">Suggestions</a>
-              <a href="/admin" className="hover:underline">Admin</a>
-            </nav>
           </div>
-        </header>
-
-        {/* Page content */}
-        <main className="max-w-6xl mx-auto px-4 py-6">{children}</main>
+        ) : (
+          children
+        )}
       </body>
     </html>
   );
