@@ -1,12 +1,11 @@
 // src/app/api/activity/friends/route.ts
 // De-duplicated Friends' Trending feed (one entry per user+movie, newest-first)
-// Aligns with simplified Redis helper (no generics) and the unified list key.
+// Fixes TS build by removing lrange<T> generics and using a simple Set<string>.
 
 import { NextRequest, NextResponse } from "next/server";
 import { redis } from "../../../../lib/redis";
 
 const LIST_KEY = "activity:events";
-// Only count these event types as "trending"
 const ALLOWED = new Set<string>(["rated", "watchlist_added", "top5_added"]);
 
 type ActivityEvent = {
@@ -24,7 +23,7 @@ export async function GET(req: NextRequest) {
     const { searchParams } = new URL(req.url);
     const limit = Math.max(1, Math.min(200, Number(searchParams.get("limit") || "50")));
 
-    // Read newest-first window
+    // Read newest-first window (no generics)
     const rawList = await redis.lrange(LIST_KEY, 0, 999);
 
     const seen = new Set<string>();
@@ -35,7 +34,7 @@ export async function GET(req: NextRequest) {
       try {
         ev = JSON.parse(raw);
       } catch {
-        continue;
+        continue; // skip bad entries like "[object Object]"
       }
       if (!ev) continue;
       if (!ALLOWED.has(ev.type)) continue;
@@ -45,7 +44,7 @@ export async function GET(req: NextRequest) {
       if (!uname) continue;
 
       const key = `${uname}:${ev.movieId}`;
-      if (seen.has(key)) continue; // keep only newest for this user+movie
+      if (seen.has(key)) continue; // keep only newest per (user+movie)
       seen.add(key);
 
       items.push({
