@@ -10,6 +10,14 @@ type LoginResponse = {
   error?: string;
 };
 
+type ServerProfile = {
+  username: string;
+  top5?: number[];
+  watchlist?: number[];
+  ratings?: Record<string, number>;
+  updatedAt?: number;
+};
+
 function saveIdentity(username: string, displayName: string) {
   try {
     localStorage.setItem(
@@ -17,6 +25,37 @@ function saveIdentity(username: string, displayName: string) {
       JSON.stringify({ username, displayName })
     );
   } catch {}
+}
+
+// Hydrate local storage (Top 5, Watchlist, Ratings) from the server snapshot
+async function hydrateFromServer(username: string) {
+  try {
+    const r = await fetch(`/api/profile/${encodeURIComponent(username)}`, { cache: "no-store" });
+    if (!r.ok) return; // no server snapshot yet, skip
+    const data: ServerProfile = await r.json();
+
+    // Top 5
+    const top5 = Array.isArray(data.top5) ? data.top5.filter((n) => Number.isFinite(n) && n > 0).slice(0, 5) : [];
+    localStorage.setItem("top5", JSON.stringify(top5));
+
+    // Watchlist (store as [{movieId}...] to match the Watchlist code)
+    const watchIds = Array.isArray(data.watchlist) ? data.watchlist.filter((n) => Number.isFinite(n) && n > 0) : [];
+    const watchObjs = watchIds.map((id) => ({ movieId: id }));
+    localStorage.setItem("watchlist", JSON.stringify(watchObjs));
+
+    // Ratings (store as JSON objects with value, updatedAt)
+    const ratings = data.ratings && typeof data.ratings === "object" ? data.ratings : {};
+    const now = Date.now();
+    for (const key of Object.keys(ratings as Record<string, number>)) {
+      const movieId = Number(key);
+      const value = Number((ratings as Record<string, number>)[key]);
+      if (Number.isFinite(movieId) && Number.isFinite(value) && value > 0) {
+        localStorage.setItem(`rating:${movieId}`, JSON.stringify({ value, updatedAt: now }));
+      }
+    }
+  } catch {
+    // ignore — login still succeeds; local will start empty unless you take an action
+  }
 }
 
 export default function LoginPage() {
@@ -43,8 +82,12 @@ export default function LoginPage() {
         return;
       }
 
-      // Save local identity for comments UI
-      saveIdentity(data.username, data.displayName || data.username);
+      // Save local identity for comments/UI
+      const displayName = data.displayName || data.username!;
+      saveIdentity(data.username!, displayName);
+
+      // ✅ Rehydrate local Top 5 / Watchlist / Ratings from server snapshot
+      await hydrateFromServer(data.username!);
 
       // Go to home
       window.location.href = "/";
