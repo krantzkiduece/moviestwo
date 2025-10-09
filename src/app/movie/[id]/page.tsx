@@ -4,6 +4,7 @@ export const revalidate = 3600; // cache TMDb data for 1 hour (server-side)
 import React from "react";
 import LocalRating from "../../../components/LocalRating";
 import TopFiveButton from "../../../components/TopFiveButton";
+import WatchlistButton from "../../../components/WatchlistButton";
 import Comments from "../../../components/Comments";
 
 type TMDbMovie = {
@@ -77,9 +78,7 @@ export default async function MoviePage({ params }: { params: { id: string } }) 
   const genres = (movie.genres || []).map((g) => g.name).join(", ");
   const relYear = yearOf(movie.release_date);
   const posterAlt =
-    "Poster for " +
-    movie.title +
-    (relYear ? " (" + relYear + ")" : "");
+    "Poster for " + movie.title + (relYear ? " (" + relYear + ")" : "");
 
   return (
     <div className="space-y-8">
@@ -142,8 +141,8 @@ export default async function MoviePage({ params }: { params: { id: string } }) 
               </div>
             )}
 
-            {/* Actions: Rating + Top 5 */}
-            <div className="mt-4 grid sm:grid-cols-2 gap-4">
+            {/* Actions: Rating + Top 5 + Watchlist */}
+            <div className="mt-4 grid sm:grid-cols-3 gap-4">
               <div className="p-3 bg-gray-900 border border-gray-800 rounded">
                 <div className="text-sm font-semibold mb-2">Your Rating</div>
                 <LocalRating movieId={movie.id} title={movie.title} />
@@ -152,6 +151,11 @@ export default async function MoviePage({ params }: { params: { id: string } }) 
               <div className="p-3 bg-gray-900 border border-gray-800 rounded">
                 <div className="text-sm font-semibold mb-2">Top 5</div>
                 <TopFiveButton movieId={movie.id} title={movie.title} />
+              </div>
+
+              <div className="p-3 bg-gray-900 border border-gray-800 rounded">
+                <div className="text-sm font-semibold mb-2">Watchlist</div>
+                <WatchlistButton movieId={movie.id} title={movie.title} />
               </div>
             </div>
           </div>
