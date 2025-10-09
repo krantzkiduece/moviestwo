@@ -1,0 +1,13 @@
+/* src/app/globals.css */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Base tweaks */
+html, body { height: 100%; }
+a { text-decoration: none; }
+
+/* Reusable card style used across pages */
+.card {
+  @apply bg-gray-900 border border-gray-800 rounded-xl p-4;
+}
