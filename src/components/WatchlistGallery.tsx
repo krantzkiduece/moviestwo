@@ -1,7 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
 
-type Item = { movieId: number; title?: string };
 type Movie = {
   id: number;
   title: string;
@@ -9,9 +8,15 @@ type Movie = {
   poster_path?: string | null;
 };
 
-function getWatchlist(): Item[] {
+type Item = { movieId: number; title?: string };
+
+function readWatchlist(): number[] {
   try {
-    return JSON.parse(localStorage.getItem("watchlist") || "[]");
+    const raw = localStorage.getItem("watchlist");
+    const arr = raw ? (JSON.parse(raw) as Item[]) : [];
+    const ids = Array.isArray(arr) ? arr.map((i) => i.movieId) : [];
+    // unique
+    return Array.from(new Set(ids.filter((n) => typeof n === "number" && n > 0)));
   } catch {
     return [];
   }
@@ -23,19 +28,34 @@ function posterUrl(p: string | null | undefined, size: "w185" | "w342" = "w185")
     : "https://via.placeholder.com/185x278?text=No+Poster";
 }
 
+// Posters first; then title A→Z
+function posterFirstSort(a: Movie, b: Movie) {
+  const ap = a.poster_path ? 0 : 1;
+  const bp = b.poster_path ? 0 : 1;
+  if (ap !== bp) return ap - bp;
+  return (a.title || "").localeCompare(b.title || "");
+}
+
 export default function WatchlistGallery() {
-  const [items, setItems] = useState<Item[]>([]);
+  const [ids, setIds] = useState<number[]>([]);
   const [movies, setMovies] = useState<Movie[]>([]);
   const [loading, setLoading] = useState(false);
 
-  // Load watchlist from localStorage
+  // Load ids from localStorage
   useEffect(() => {
-    setItems(getWatchlist());
+    setIds(readWatchlist());
   }, []);
 
-  // Fetch details for each movieId
+  // Refresh when a rating happens (since rating auto-removes from watchlist)
   useEffect(() => {
-    if (!items.length) {
+    const onRated = () => setIds(readWatchlist());
+    window.addEventListener("cinecircle:rated", onRated as EventListener);
+    return () => window.removeEventListener("cinecircle:rated", onRated as EventListener);
+  }, []);
+
+  // Fetch movie details for all ids
+  useEffect(() => {
+    if (!ids.length) {
       setMovies([]);
       return;
     }
@@ -44,20 +64,22 @@ export default function WatchlistGallery() {
       setLoading(true);
       try {
         const results = await Promise.all(
-          items.map(async (it) => {
-            const res = await fetch(`/api/tmdb/movie/${it.movieId}`);
+          ids.map(async (id) => {
+            const res = await fetch(`/api/tmdb/movie/${id}`);
             if (!res.ok) throw new Error("fetch failed");
-            return res.json();
+            const d = await res.json();
+            const m: Movie = {
+              id: d.id,
+              title: d.title,
+              release_date: d.release_date,
+              poster_path: d.poster_path,
+            };
+            return m;
           })
         );
         if (!cancelled) {
-          const ms: Movie[] = results.map((d) => ({
-            id: d.id,
-            title: d.title,
-            release_date: d.release_date,
-            poster_path: d.poster_path,
-          }));
-          setMovies(ms);
+          results.sort(posterFirstSort);
+          setMovies(results);
         }
       } catch {
         if (!cancelled) setMovies([]);
@@ -68,12 +90,10 @@ export default function WatchlistGallery() {
     return () => {
       cancelled = true;
     };
-  }, [items]);
+  }, [ids]);
 
   if (loading) return <div className="text-gray-300">Loading Watchlist…</div>;
-  if (!items.length) {
-    return <div className="text-gray-400">Your Watchlist is empty.</div>;
-  }
+  if (!ids.length) return <div className="text-gray-400">Your Watchlist is empty.</div>;
 
   return (
     <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-4">
@@ -92,10 +112,7 @@ export default function WatchlistGallery() {
               loading="lazy"
             />
             <div className="p-2 text-sm">
-              <div className="font-medium truncate">
-                {m.title}
-                {year}
-              </div>
+              <div className="font-medium truncate">{m.title}{year}</div>
             </div>
           </a>
         );
