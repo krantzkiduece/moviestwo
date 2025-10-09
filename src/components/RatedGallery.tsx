@@ -72,6 +72,20 @@ function SectionHeader({ stars }: { stars: number }) {
   );
 }
 
+// Posters first → newest (updatedAt desc) → title A→Z
+function posterFirstThenRecentThenTitle(
+  a: Movie & { updatedAt?: number },
+  b: Movie & { updatedAt?: number }
+) {
+  const ap = a.poster_path ? 0 : 1;
+  const bp = b.poster_path ? 0 : 1;
+  if (ap !== bp) return ap - bp;
+  const at = a.updatedAt ?? 0;
+  const bt = b.updatedAt ?? 0;
+  if (bt !== at) return bt - at;
+  return (a.title || "").localeCompare(b.title || "");
+}
+
 export default function RatedGallery() {
   const [rated, setRated] = useState<RatedItem[]>([]);
   const [byBucket, setByBucket] = useState<
@@ -125,20 +139,17 @@ export default function RatedGallery() {
           if (!item) continue;
           const b = item.bucket;
           if (b >= 1 && b <= 5) {
-            grouped[b].push({ ...item.movie, rating: item.rating, updatedAt: item.updatedAt });
+            grouped[b].push({
+              ...item.movie,
+              rating: item.rating,
+              updatedAt: item.updatedAt,
+            });
           }
-          // ratings that round down to 0 are not shown in any section by design
         }
 
-        // Sort each bucket by latest (if available), otherwise title
+        // Sort each bucket: posters first → newest → title
         for (const b of [5, 4, 3, 2, 1]) {
-          grouped[b].sort((a, b_) => {
-            const at = a.updatedAt ?? 0;
-            const bt = b_.updatedAt ?? 0;
-            if (bt !== at) return bt - at; // latest first
-            // fallback: alphabetical
-            return a.title.localeCompare(b_.title);
-          });
+          grouped[b].sort(posterFirstThenRecentThenTitle);
         }
 
         setByBucket(grouped);
@@ -184,7 +195,10 @@ export default function RatedGallery() {
                       loading="lazy"
                     />
                     <div className="p-2 text-sm">
-                      <div className="font-medium truncate">{m.title}{year}</div>
+                      <div className="font-medium truncate">
+                        {m.title}
+                        {year}
+                      </div>
                       <div className="text-xs text-yellow-300 mt-1">
                         ★ {m.rating.toFixed(1)} / 5
                       </div>
