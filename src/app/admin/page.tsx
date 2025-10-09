@@ -1,12 +1,12 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 
 type Friend = { username: string; displayName: string };
 
 export default function AdminPage() {
   const [password, setPassword] = useState("");
   const [status, setStatus] = useState<"idle" | "loading" | "ok" | "error">("idle");
-  const [message, setMessage] = useState<string>("");
+  const [message, setMessage] = useState("");
 
   // Friends state
   const [friends, setFriends] = useState<Friend[]>([]);
@@ -15,9 +15,7 @@ export default function AdminPage() {
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState<string | null>(null);
 
-  // Login: we mark "ok" when the server accepts the password.
-  // (Cookie is httpOnly, so we can't read it on the client.)
-  const onSubmit = async (e: React.FormEvent) => {
+  const signIn = async (e: React.FormEvent) => {
     e.preventDefault();
     setStatus("loading");
     setMessage("");
@@ -35,18 +33,17 @@ export default function AdminPage() {
       }
       setStatus("ok");
       setMessage("Logged in as Admin.");
-      await loadFriends(); // load once we’re logged in
-    } catch (err: any) {
+      // load friends once logged in
+      await loadFriends();
+    } catch (e: any) {
       setStatus("error");
-      setMessage(err?.message || "Network error");
+      setMessage(e?.message || "Network error");
     }
   };
 
-  // Load list (GET is public, but POST/DELETE will require the admin cookie set above)
   const loadFriends = async () => {
     try {
       const r = await fetch("/api/admin/friends", { cache: "no-store" });
-      if (!r.ok) throw new Error("Failed to load friends");
       const data = await r.json();
       setFriends(Array.isArray(data?.friends) ? data.friends : []);
     } catch {
@@ -54,7 +51,6 @@ export default function AdminPage() {
     }
   };
 
-  // Add or update a friend
   const addFriend = async () => {
     if (!uname.trim() || !dname.trim()) {
       setMessage("Please fill both Username and Display Name.");
@@ -88,7 +84,6 @@ export default function AdminPage() {
     }
   };
 
-  // Delete a friend
   const deleteFriend = async (username: string) => {
     setDeleting(username);
     setMessage("");
@@ -115,11 +110,9 @@ export default function AdminPage() {
       <div className="card max-w-md">
         <h1 className="text-2xl font-bold">Admin Login</h1>
         <p className="text-gray-400 mt-2 text-sm">
-          Enter the admin password you set in Vercel environment variables
-          (<code>ADMIN_PASSWORD</code>).
+          Enter the admin password (<code>ADMIN_PASSWORD</code>).
         </p>
-
-        <form onSubmit={onSubmit} className="mt-4 space-y-3">
+        <form onSubmit={signIn} className="mt-4 space-y-3">
           <input
             type="password"
             className="w-full bg-gray-900 border border-gray-700 rounded px-3 py-2"
@@ -134,7 +127,6 @@ export default function AdminPage() {
             {status === "loading" ? "Signing in…" : "Sign in"}
           </button>
         </form>
-
         {message && (
           <div className={`mt-3 text-sm ${status === "error" ? "text-red-400" : "text-green-400"}`}>
             {message}
@@ -144,7 +136,7 @@ export default function AdminPage() {
     );
   }
 
-  // Logged-in admin UI
+  // Logged-in admin UI — simplified with Manage Friends clearly visible
   return (
     <div className="space-y-6">
       <div className="card">
@@ -159,13 +151,10 @@ export default function AdminPage() {
         </div>
       </div>
 
+      {/* >>> This section should always be visible now after login <<< */}
       <div className="card">
         <h2 className="text-xl font-semibold">Manage Friends</h2>
-        <p className="text-gray-400 text-sm mb-4">
-          Add usernames your group will use. Public list available at <code>/friends</code> (coming next).
-        </p>
-
-        <div className="grid sm:grid-cols-3 gap-3">
+        <div className="grid sm:grid-cols-3 gap-3 mt-3">
           <input
             className="bg-gray-900 border border-gray-700 rounded px-3 py-2"
             placeholder="username (e.g. kevin)"
