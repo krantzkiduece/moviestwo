@@ -1,4 +1,4 @@
-export const revalidate = 600; // cache trending for 10 minutes
+export const revalidate = 600; // cache trending for 10 minutess
 
 type TvItem = {
   id: number;
