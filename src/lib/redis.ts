@@ -1,5 +1,7 @@
 // src/lib/redis.ts
 // Upstash Redis client with SAFE helpers that always write strings.
+// Simplified types to avoid TS generics issues.
+
 import { Redis } from "@upstash/redis";
 
 const url = process.env.UPSTASH_REDIS_REST_URL!;
@@ -10,7 +12,7 @@ export const client = new Redis({ url, token });
 // ---- String helpers ---------------------------------------------------------
 
 export async function get<T = unknown>(key: string): Promise<T | null> {
-  return (await client.get<T>(key)) as any;
+  return (await client.get(key)) as T | null;
 }
 
 export async function set(
@@ -31,9 +33,9 @@ export async function sadd(key: string, member: string) {
 export async function srem(key: string, member: string) {
   return client.srem(key, member);
 }
-export async function smembers<T = string>(key: string): Promise<T[]> {
-  const res = await client.smembers<T>(key);
-  return (Array.isArray(res) ? res : []) as T[];
+export async function smembers(key: string): Promise<string[]> {
+  const res = (await client.smembers(key)) as unknown;
+  return Array.isArray(res) ? (res as string[]) : [];
 }
 
 // ---- List helpers -----------------------------------------------------------
@@ -45,13 +47,13 @@ export async function lpush(key: string, value: unknown) {
 export async function ltrim(key: string, start: number, stop: number) {
   return client.ltrim(key, start, stop);
 }
-export async function lrange<T = string>(
+export async function lrange(
   key: string,
   start: number,
   stop: number
-): Promise<T[]> {
-  const res = (await client.lrange(key, start, stop)) as any[];
-  return (Array.isArray(res) ? res : []) as T[];
+): Promise<string[]> {
+  const res = (await client.lrange(key, start, stop)) as unknown;
+  return Array.isArray(res) ? (res as string[]) : [];
 }
 export async function llen(key: string): Promise<number> {
   return client.llen(key);
