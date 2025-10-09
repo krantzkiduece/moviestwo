@@ -1,16 +1,13 @@
 // src/app/trending/page.tsx
 // Friends’ Trending (deduped per user+movie) + TMDb Trending (posters only)
 
-export const revalidate = 600; // revalidate TMDb section every 10 minutess
+export const revalidate = 600; // revalidate TMDb section every 10 minutes
 
 import { redis } from "../../lib/redis";
 
 const LIST_KEY = "activity:events";
-const ALLOWED = new Set<("rated" | "watchlist_added" | "top5_added")>([
-  "rated",
-  "watchlist_added",
-  "top5_added",
-]);
+// Relax the Set type to string so TS doesn't complain about wider event unions.
+const ALLOWED = new Set<string>(["rated", "watchlist_added", "top5_added"]);
 
 type ActivityEvent = {
   at: number;
@@ -46,7 +43,7 @@ async function getFriendsTrending(limit = 60) {
     } catch {
       continue;
     }
-    if (!ev || !ALLOWED.has(ev.type)) continue;
+    if (!ev || !ALLOWED.has(ev.type)) continue; // now OK: Set<string>
     if (!ev.movieId || !ev.at) continue;
 
     const uname = (ev.username || "").toLowerCase();
